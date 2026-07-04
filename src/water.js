@@ -2,7 +2,7 @@
 import * as THREE from "three";
 import { COLORS, mat } from "./world.js";
 
-export const WATER = 0xa9cbd4;
+export const WATER = 0x93bfd0;
 export const ICE = 0xd8e4ea;
 export const FOAM = 0xdcecf0;
 
@@ -12,10 +12,13 @@ const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matc
 const _mirror = new THREE.Color(), _base = new THREE.Color(WATER), _ice = new THREE.Color(ICE);
 const AMP = 0.03;
 
-// sky-mirror tint: WATER lerped 55% toward the sky/fog colour, then toward ICE
-// as the river freezes. Writes into `out` — no allocation.
+// sky-mirror tint: WATER lerped toward the sky/fog colour, then toward ICE as
+// the river freezes. Scene lighting on MeshStandard already carries most of
+// the day/night darkening, so the lerp stays weak (a hue shift, not a wash)
+// and the result is pulled slightly dark so water never assimilates into the
+// warm terrain at dusk. Writes into `out` — no allocation.
 function mirror(out, frozen, ws) {
-  out.copy(_base).lerp(ws.lighting.bg, 0.55).lerp(_ice, frozen);
+  out.copy(_base).lerp(ws.lighting.bg, 0.30).multiplyScalar(0.90).lerp(_ice, frozen);
 }
 
 // banding by |k|: centre lane dark, edges pale. Contrast is pushed hard because
@@ -76,7 +79,9 @@ function buildLanedRibbon(curve, width, segments, lanes) {
   for (let i = 0; i < segments; i++) {
     for (let l = 0; l < lanes; l++) {
       const a = cols[i][l], b = cols[i][l + 1], c = cols[i + 1][l], d = cols[i + 1][l + 1];
-      pushV(a); pushV(b); pushV(c); pushV(b); pushV(d); pushV(c);
+      // wound so face normals point +y (lane order runs -k → +k; the plan's
+      // (a,b,c)(b,d,c) order pointed them down and the river backface-culled)
+      pushV(a); pushV(c); pushV(b); pushV(b); pushV(c); pushV(d);
     }
   }
   const geo = new THREE.BufferGeometry();
