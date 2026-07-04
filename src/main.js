@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { buildWorld, COLORS } from "./world.js";
 import { Musashi } from "./musashi.js";
 import { Travelers } from "./travelers.js";
+import { Cycle } from "./cycle.js";
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -75,6 +76,9 @@ if (!reducedMotion) {
 
 const world = buildWorld(scene);
 
+const cycle = new Cycle({ reducedMotion });
+cycle.addStars(scene);
+
 const musashi = new Musashi(world.island, {
   fire: { position: new THREE.Vector3(0.25, 0, 0.55), facing: 1.1 }, // faces the fire
   tree: { position: new THREE.Vector3(-1.75, 0, -0.7), facing: 0.9 }, // back to the sakura, facing the clearing
@@ -144,6 +148,18 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.1); // clamp tab-return jumps
   t += dt;
 
+  cycle.update(dt);
+  const ws = cycle.state;
+  const L = ws.lighting;
+  renderer.setClearColor(L.bg);
+  scene.fog.color.copy(L.bg);
+  hemi.color.copy(L.hemiSky);
+  hemi.groundColor.copy(L.hemiGround);
+  hemi.intensity = L.hemiIntensity;
+  sun.color.copy(L.sunColor);
+  sun.intensity = L.sunIntensity;
+  fill.intensity = L.fillIntensity;
+
   parallax.x += (parallax.tx - parallax.x) * 0.04;
   parallax.y += (parallax.ty - parallax.y) * 0.04;
   camera.position.set(
@@ -153,7 +169,7 @@ renderer.setAnimationLoop(() => {
   );
   camera.lookAt(LOOK_AT);
 
-  world.fire.update(t);
+  world.fire.update(t, ws.night);
   world.petals.update(dt, t);
   musashi.update(dt, t);
   travelers.update(dt, t);

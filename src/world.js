@@ -288,13 +288,13 @@ export class Fire {
     parent.add(this.group);
   }
 
-  update(t) {
+  update(t, night = 0) {
     const flicker = Math.sin(t * 11) * 0.5 + Math.sin(t * 23 + 1.7) * 0.3 + Math.sin(t * 5.3) * 0.2;
     this.flameOuter.scale.set(1 + flicker * 0.12, 1 + flicker * 0.22, 1 + flicker * 0.12);
     this.flameInner.scale.set(1 - flicker * 0.1, 1 + flicker * 0.28, 1 - flicker * 0.1);
     this.flameOuter.rotation.y = t * 0.8;
     this.flameInner.rotation.y = -t * 1.1;
-    this.light.intensity = 3.4 + flicker * 1.2;
+    this.light.intensity = (3.4 + flicker * 1.2) * (0.7 + night * 0.9);
   }
 }
 
