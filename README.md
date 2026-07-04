@@ -3,6 +3,8 @@
 Personal homepage as a living low-poly diorama. Musashi cycles through his day
 (zazen by the fire → sword kata → reading → painting) under a cherry tree while
 travelers pass on the road offering world-history Wikipedia links in speech bubbles.
+Since v4 the full-viewport **expanse** is the landing page; the framed island
+diorama lives at `/island.html`.
 
 Design brief: `../design/musashi-homepage-brief.md`
 
@@ -23,8 +25,8 @@ npm run build    # static build in dist/
 - `src/cycle.js` — the day/night + season clock (`ws` state read by everything else)
 - `src/weather.js` — seasonal falling particles (petals/leaves/snow), rain, fireflies, mist
 - `src/landmarks.js` — temple, lantern, zen garden, bridge
-- `src/water.js` — the river, pool, and waterfall: laned faceted surface with per-vertex banding, sky-mirror tint, bank foam, koi, night sparkles, summer dragonflies
-- `src/main.js` — renderer, lighting, isometric camera + parallax, loader, status line
+- `src/water.js` — the river, weir cascade, and koi pond: laned faceted surface with per-vertex banding, sky-mirror tint, bank foam, koi
+- `src/main.js` — renderer, lighting, isometric camera + parallax, loader, live season wordmark
 
 ## Tuning knobs
 
@@ -59,9 +61,10 @@ cold-water misogi.
 New landmarks (`src/landmarks.js`): a small temple, a stone lantern that
 lights at night, a raked zen garden, and a river/bridge/waterfall.
 
-**Two pages**: `/` is the original framed island diorama; `/expanse.html` is
-the same world rendered as a full-viewport terrain with no island edge. A
-small `expanse ↗` / `island ↗` link (bottom-right) toggles between them.
+**Two pages**: the framed island diorama and the same world rendered as a
+full-viewport terrain with no island edge. A small `expanse ↗` / `island ↗`
+link (bottom-right) toggles between them. (v2 landed on the island; since v4
+the expanse is `/` and the island is `/island.html`.)
 
 **Dev scrub params** (query string, either page) let you jump straight to a
 scene instead of waiting for the clock:
@@ -97,5 +100,32 @@ water's surface; on summer days, two dragonflies drift and hover over the
 river, fading in and out rather than popping. Winter freezes all of it at
 once — motion stops, the wildlife hides, and the palette goes pale and still.
 
-See the "v3 water" section in `.claude/skills/verify/SKILL.md` for the full
+See the "v4 water" section in `.claude/skills/verify/SKILL.md` for the full
 per-season/per-time-of-day verification recipe.
+
+## v4 — the quiet cut
+
+- **Expanse is the landing page** (`/`); the framed island moved to
+  `/island.html`. The island itself is now a **single slab** (one moss top +
+  cliff side) instead of the old three-tier cake.
+- **The water calmed down.** The big cliff waterfall, its expanse basin, the
+  night sparkle glints, and the summer dragonflies are gone. The river now
+  tapers in from the NW landscape (no hard entry edge), runs under the bridge,
+  tips over a small stone **weir** (three wiggling cascade ribbons + lip
+  fringe), and ends in a **larger koi pond/lake** sunk into the terrain — a
+  real hole in the island slab, a carved dish in the expanse ground. Same rig
+  on both pages; nothing pours off the island edge anymore. Misogi now means
+  standing shin-deep in the pond before the falls.
+- **No narration.** The `#status` pill and all activity/traveler lines were
+  removed; travelers still offer their Wikipedia speech bubbles.
+- **Wordmark**: just `musashi's hill` plus a live season line (updates as the
+  year turns). Name and kanji left the top-left corner (the loader splash
+  keeps its 武蔵の丘 mon).
+- **Travelers walk at a uniform pace.** Stepping is arc-length based
+  (`getPointAt`, world-units/sec) instead of curve-param based, which used to
+  race through the expanse road's long off-screen end segments and snap to
+  normal speed mid-frame. Bubbles trigger by world position (`|x| < 1.6`).
+- **Landmark polish**: the temple went vermillion, grew a third roof tier and
+  taller pillars (Kyoto vibes); the bridge deck is ~20% wider; the sakura is
+  18% bigger; the zen garden's sand is a jittered, subdivided surface with 10
+  finer ridges and concentric raked arcs around its largest rock.

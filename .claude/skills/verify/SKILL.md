@@ -3,15 +3,15 @@ name: verify
 description: How to verify the musashi-homepage diorama end-to-end (dev server + Playwright)
 ---
 
-# Verifying musashi-homepage (v2)
+# Verifying musashi-homepage (v4)
 
 Vite static site, no tests. Surface = pixels + DOM overlays. Two pages, one
-scene graph: `/` (island, framed diorama) and `/expanse.html` (full-viewport
-terrain, same actors). Toggle link bottom-right on each (`expanse ↗` /
-`island ↗`).
+scene graph: `/` (**expanse**, full-viewport terrain — the default since v4)
+and `/island.html` (framed single-slab island diorama). Toggle link
+bottom-right on each (`island ↗` / `expanse ↗`).
 
 ## Launch
-- `npm run dev` in this dir → usually http://localhost:5199 (check terminal for actual port). Often already running.
+- `npm run dev` in this dir → usually http://localhost:5173 (check terminal for actual port). Often already running.
 - Drive with Playwright MCP: navigate, screenshot, `browser_evaluate`.
 
 ## Dev scrub params (query string, either page)
@@ -20,7 +20,7 @@ terrain, same actors). Toggle link bottom-right on each (`expanse ↗` /
 | `time` | 0..1 | day position; dawn 0.0, day 0.25, **dusk 0.55 (default)**, night 0.8 (wraps at 1) |
 | `season` | `spring｜summer｜autumn｜winter` or `0-3` | starting season (default spring/0) |
 | `speed` | multiplier | day/night + season clock rate; `0` **freezes** the clock (use for clean screenshots); `60` fast-forwards a season boundary in ~12s (`DAY_LENGTH`=360s, `DAYS_PER_SEASON`=2 → 720s/season) |
-| `activity` | one of the 10 names below | starting activity (see known nit) |
+| `activity` | one of the 10 names below | starting activity |
 | `duration` | seconds | override activity-hold time before the next walk (default 75s) |
 
 Negative/garbage values are guarded (clamped or ignored) — see `e444ef8` fix commit.
@@ -32,51 +32,62 @@ Always pair `time`/`season` screenshots with `&speed=0` so the frame doesn't dri
 — each has a home "spot" (`musashi.js SPOT_FOR`); several share a spot
 (zazen/tea @ fire, reading/carving @ tree), so `pickNext` excludes
 same-spot activities as candidates. Night (`ws.night > 0.5`) biases the
-pool to `[zazen, tea, reading]`. Winter excludes `misogi`.
+pool to `[zazen, tea, reading]`. Winter excludes `misogi`. Since v4, misogi
+means standing shin-deep in the koi pond facing the weir cascade (spot y is
+-0.30, below ground level — that's correct, he's in the water).
 
 ## Key hooks for driving
-- Status pill: `document.getElementById('status').textContent` — narrates Musashi's current activity, walk-starts ("musashi walks to the fire" etc.), and traveler events ("a monk approaches on the road" / "the monk knows a story"). Best observed via a `MutationObserver` on `#status` logging `[performance.now(), textContent]`, not by polling — see known nit below.
-- Musashi cycles activities every `activityDuration` seconds (default 75, `?duration=` override; `musashi.js` ~line 190); walks between spots via a `CatmullRomCurve3` with two jittered waypoints (`startWalk`/`updateWalk`).
-- Travelers spawn ~7-45s apart (first visit early, `travelers.js` `nextSpawnAt`); bubble = `.bubble a[href*="wikipedia"]`-ish overlay (actual class is `.bubble`, one `<a>` inside), 99 links in `src/links.js`.
-- **Bubble timing**: linger 14s from creation (`traveler.bubbleTimer = 14`); hovering the bubble itself (`bubble.addEventListener("mouseenter", ...)` — NOT a parent wrapper) sets `traveler.paused = true`, freezing its position; `mouseleave` resumes and re-extends the timer to `Math.max(bubbleTimer, 10)` (10s minimum post-hover linger). Removal itself has a 750ms CSS fade tail after the timer hits 0 (`dismissBubble`), so creation→DOM-removal measures ~14.7-14.8s total — that's correct, not a bug.
-- Hover-pause verification: dispatch `mouseenter` directly on `document.querySelector('.bubble')` (not its parent), sample `getBoundingClientRect().left` every ~150ms before/during/after — unhovered drifts several px/sample, hovered `left` is bit-for-bit frozen (only the walk-bob `top` jitter continues, since that's t-based not position-based).
-- Night/lantern/stars: `ws.night` (0..1) is derived from the lighting keyframe interpolation between the dusk (0.55) and night (0.8) `KEYS` in `cycle.js` — it's a continuous ramp, not a hard threshold. It drives: star field opacity (`cycle.js addStars`), the stone lantern's point light + glow emissive (`landmarks.js` ~line 298-300, scales `ws.night * 1.6` / `* 1.1`), summer fireflies opacity (`weather.js updateFireflies`, `ws.night * pulse`). Use `?time=0.8&speed=0` for full night; `?time=0.55` (default) for zero night effects.
-- Season boundary: `?speed=60` advances one full season in ~12s real time — confirmed by watching the tree/terrain palette flip (e.g. `?season=winter` → spring → summer) and season-appropriate weather (fireflies only in summer, mist only in autumn, rain bursts only in spring) come and go.
-- River freezes in winter (`landmarks.js` pre-v3 / `water.js` in v3); frozen river reads as a pale icy strip vs. the blue-green summer water. See "v3 water" below for the full faceted-river behavior.
-- Tilt: dispatch `PointerEvent('pointermove')` on window, wait ~1 s for lerp, compare screenshots. Disabled entirely under reduced motion (see below).
-- Loader: `#loader` gets class `done`; catch phrases by polling `#loader` innerText immediately after `location.reload()` (a fresh evaluate call — reload kills the JS context of the polling one).
-- Narrow fallback: resize to 390×844 — on `/`, the frustum widens (`main.js frameCamera`, `Math.max(FRUSTUM, 16.5/aspect)`) so the island stays framed; on `/expanse.html`, frustum height is fixed (no island to fit) and only narrows horizontally on tall screens, to avoid clipping into the ground on portrait aspects.
-- Reduced motion: code-only check, no Playwright emulateMedia tool available. Six touchpoints:
-  1. `main.js` (top-level `reducedMotion` const) — disables the `pointermove` parallax listener entirely.
-  2. `cycle.js` `Cycle` constructor — `this.speed = reducedMotion ? 0 : ...`, i.e. the whole day/night/season clock freezes.
-  3. `musashi.js` (`this.reducedMotion`, in `update()`) — skips `startWalk`, falls back to the old instant-fade activity swap instead of a physical walk.
-  4. `weather.js` constructor + per-system guards — particle cap drops from 110 to 30; spring rain is skipped entirely (`if (!reducedMotion)` around rain setup); fireflies stop orbiting (position stays at `base`, only opacity pulses); autumn mist stops drifting.
-  5. `style.css` `@media (prefers-reduced-motion: reduce)` block — disables the `.bubble` CSS animations (appear/leave).
-  6. `water.js` (top-level `reducedMotion` const, 9 touchpoints — `grep -n reducedMotion src/water.js`) — river swell is baked once at build time instead of animated per-frame; bank foam holds a static opacity level with no sine drift; foam streaks and ripple rings are hidden (`.visible = false` / opacity forced 0) rather than paused; waterfall ribbons skip the wiggle loop; koi keep circling but at 0.15× speed (slowed, not hidden — see Task 4); night sparkles hold a static `ws.night * 0.5` opacity with no drift; dragonflies are excluded from the visibility gate entirely (`&& !reducedMotion` in the target-opacity calc), so they never appear.
+- **No status pill since v4** — the `#status` narration line was removed. Musashi's activity is verified visually (pose + spot); traveler arrivals are verified by their speech bubble alone.
+- Wordmark = `musashi's hill` + a live season line: `document.getElementById('season').textContent` must equal `ws.season` (updates on season flips; check with `?speed=60` — flips within ~12s).
+- Musashi cycles activities every `activityDuration` seconds (default 75, `?duration=` override); walks between spots via a `CatmullRomCurve3` with two jittered waypoints (`startWalk`/`updateWalk`).
+- Travelers spawn ~7-45s apart (first visit early, `travelers.js` `nextSpawnAt`); bubble = `.bubble` overlay (one `<a>` inside), 99 links in `src/links.js`.
+- **Traveler speed is uniform since v4**: stepping is `u += dir * (speed / curveLength) * dt` with `getPointAt/getTangentAt` (arc-length), speed 0.36-0.44 world-units/s. On `/` (long road curve), spawn happens where `|x|` first drops under 13 (just inside the fog); the bubble triggers at `|world x| < 1.6` (mid-frame). Verify no fast-then-slow snap: sample the bubble's `style.left` per second — deltas should be steady (~±10%, road curvature only).
+- **Bubble timing**: linger 14s from creation (`traveler.bubbleTimer = 14`); hovering the bubble sets `traveler.paused = true`, freezing its position; `mouseleave` resumes and re-extends the timer to `Math.max(bubbleTimer, 10)`. Removal has a 750ms CSS fade tail, so creation→DOM-removal measures ~14.7-14.8s total — correct, not a bug.
+- Hover-pause verification: dispatch `mouseenter` directly on `document.querySelector('.bubble')`, sample `getBoundingClientRect().left` every ~150ms before/during/after — unhovered drifts several px/sample, hovered `left` is bit-for-bit frozen.
+- Night/lantern/stars: `ws.night` (0..1) is a continuous ramp between the dusk (0.55) and night (0.8) `KEYS` in `cycle.js`. It drives: star field opacity (island page only), the stone lantern's light/glow, summer fireflies. Use `?time=0.8&speed=0` for full night; `?time=0.55` (default) for zero night effects.
+- Tilt: dispatch `PointerEvent('pointermove')` on window, wait ~1 s for lerp, compare screenshots. Disabled under reduced motion.
+- Loader: `#loader` gets class `done`; the 武蔵の丘 splash is intentionally kept (it's the splash mon, not the top-left wordmark).
+- Reduced motion: code-only check. Touchpoints: `main.js` parallax off; `cycle.js` clock frozen; `musashi.js` instant activity swap instead of walks; `weather.js` particle cap 30, no rain, static fireflies/mist; `style.css` bubble animations off; `water.js` (grep `reducedMotion`) — swell baked once, foam static, streaks/rings hidden, cascade wiggle skipped, koi at 0.15× speed.
 
-## v3 water
-The river/pool/waterfall (`src/water.js`) is the diorama's standout artifact — a laned, flat-shaded faceted surface with sky-mirror tinting, foam, koi, night sparkles, and summer dragonflies. Verify with `?time= ?season= ?speed=` on both pages, same as everything else.
+## v4 water (river → weir → koi lake)
+The big cliff waterfall, expanse basin, night sparkles, and dragonflies are
+**gone** since v4. The rig, identical on both pages: river enters at the NW
+(tapering to a point + sinking into the ground over its first ~12% — no hard
+start), runs under the bridge, tips over a stone **weir** (small 3-ribbon
+cascade + lip fringe), and terminates in a **koi pond/lake** (r 1.1, surface
+y -0.18) sunk at world (-2.7, 4.7) — a slab hole on `/island.html`, a carved
+dish on `/`. A mossDark bank ring covers the rim seam; it whitens across the
+winter freeze (it's outside world.js's season tint registry).
 
-**Sky-mirror tint** — water color = `WATER (0x93bfd0)` lerped 30% toward `ws.lighting.bg`, scaled by 0.90 (pulled slightly dark), then lerped toward `ICE (0xd8e4ea)` by `frozen`. So the pool/river should visibly warm/cool with the sky: rose-pale at `?time=0.0` (dawn), gold at the dusk default, ink-dark at `?time=0.8` (night). Screenshot each `&speed=0` and eyeball the tint against the sky gradient — they should read as the same light.
+**Sky-mirror tint** — river + pond color = `WATER (0x93bfd0)` lerped 30% toward
+`ws.lighting.bg`, scaled 0.90, then lerped toward `ICE (0xd8e4ea)` by `frozen`.
+Rose-pale at dawn, gold at dusk, ink-dark at night. Screenshot each `&speed=0`.
 
 **Gating conditions** (check by screenshot, not just code):
 | feature | visible when | hidden/altered when |
 |---|---|---|
-| bank foam lines + drifting streaks | `frozen < 0.5` (streaks) / always faint pulse otherwise | winter (`frozen→1`): both fade to nothing, no popping |
-| pool ripple rings (3, cycling) | `!reducedMotion && frozen < 1` | winter or reduced motion: invisible |
-| koi (2, circling the pool) | always, except hidden logic is speed not visibility | `frozen >= 0.5`: hidden; reduced motion: 0.15× speed (still visible, just slow) |
-| night sparkle glints (22, additive) | opacity `∝ ws.night`, so only shows as dusk shades into night (`?time=0.8` is the clean full-strength shot; `?time=0.55` default should show none) | winter: `(1 - frozen)` factor zeroes it regardless of `ws.night` |
-| summer dragonflies (2, over the river) | `ws.season === "summer" && ws.night < 0.3 && !reducedMotion` — i.e. summer daytime/dusk only, faded in/out over 1s (never popped) | any other season, night, winter, or reduced motion |
-| waterfall ribbons/lip fringe/splash ring | wiggling, cycling | winter: static + paled opacity, splash ring gone |
+| bank foam lines + drifting streaks | `frozen < 0.5` (streaks; clamped to u∈[0.15,0.95], never on the tapered tip) | winter: fade to nothing, no popping |
+| ripple rings (3, at the cascade impact on the pond's north rim) | `!reducedMotion && frozen < 1` | winter or reduced motion: invisible |
+| koi (2, circling the pond at radii 0.4/0.62) | `frozen < 0.5` | frozen: hidden; reduced motion: 0.15× speed |
+| weir cascade ribbons / lip fringe / splash ring | wiggling, cycling | winter: cascade static + paled (45%), fringe/splash gone |
 
-**Frozen-stillness check**: at `?season=winter&speed=0`, take two screenshots ~3s apart — the faceted river surface, foam, streaks, rings, koi, and waterfall must be **pixel-identical** (no residual jitter). `frozen` is computed as `ws.season === "winter" ? 1 - ws.seasonBlend : ws.nextSeason === "winter" ? ws.seasonBlend : 0` — verify pre-winter (autumn nearing the boundary) shows a partial ice tint, not a hard cut.
+**No-sparkle/no-dragonfly check**: `?time=0.8&speed=0` → zero glints on the
+water; `?season=summer&time=0.25&speed=0` → zero dragonflies over the river.
 
-**Two-frame-diff technique** (for confirming motion, not just gating): navigate with a *live* clock (no `speed=0`, or a low nonzero speed), screenshot, wait 2-4 real seconds, screenshot again. Diff the water region only (crop to the river/pool/falls bounding box before comparing — the rest of the scene, Musashi, particles, etc. also moves and will swamp a full-frame diff). Expect to see: ripple-ring radius/opacity changed (different phase), at least one koi in a different position, foam streak positions shifted along the river, and subtle waterfall-ribbon wiggle. A Python `PIL.ImageChops.difference` on the cropped region with a nonzero bounding box is a fast confirmation before eyeballing.
+**Frozen-stillness check**: at `?season=winter&speed=0`, two screenshots ~3s
+apart — the water crop must be pixel-identical. `frozen` ramps across the
+`SEASON_FADE=20` window, so autumn-nearing-winter shows a partial ice tint.
 
-**Season-boundary sweep**: `?season=autumn&speed=60` and screenshot every ~1s starting immediately after navigate — the autumn→winter crossfade window is only `SEASON_FADE=20` sim-seconds wide (≈0.3s of real time at speed 60), so it's easy to blow past it between screenshots; sampling every ~1s from t=0 with no gaps is the reliable way to land a genuine blend frame (you'll know you have one when autumn leaf-fall particles and winter snow particles are both on screen at once, alongside a part-bare/part-orange tree). The water itself should show the same blend: still liquid-looking but already shifting toward the pale ice tone, no hard pop between the two states.
+**Two-frame-diff technique** (confirming motion): live clock, screenshot, wait
+2-4s, screenshot, diff the water region only (crop first). Expect ripple-ring
+phase change, a koi displaced, streaks shifted, cascade wiggle.
+
+**Season-boundary sweep**: `?season=autumn&speed=60`, screenshot every ~1s from
+t=0 — the 20-sim-second crossfade is ≈0.3s real at speed 60; a genuine blend
+frame shows leaves + snow at once and water already shifting toward ice.
 
 ## Gotchas
 - Playwright MCP saves screenshots to claude_playground root (its cwd), not this dir — move them out after.
-- Console shows ~20-26 benign three.js "toNonIndexed(): already non-indexed" warnings on load; not a regression signal. Use `browser_console_messages` **without** `all: true` (i.e. since-last-navigation) when checking for errors — with `all: true` you'll also see stale HMR noise (duplicate-identifier / transient reference errors) left over from earlier live-edit sessions against the same dev server; that's an artifact of hot-reload during development, not a defect in the current code.
-- Known nit: Musashi's "musashi walks to X" status line only fires `if (!interrupted)` (`main.js` `onWalkStart`), and `interrupted` is `true` for a traveler's **entire** time on screen (from spawn's "approaches on the road" line through full departure), not just while its speech bubble is up. Because a traveler's road transit is much longer (~40s+) than a short `?duration=` test value, the walk-transition line is very often silently swallowed by a concurrent traveler — the walk still happens physically (position/pose update), just without its own status line. To observe the "walks to" text reliably, use a `duration` long enough to clear the traveler window, or accept the arrival line (`"musashi is <activity>..."`) as the transition's confirmation instead.
-- Known nit: initial status pill text is stale when `?activity=` is used to start on a non-default activity — the pill still shows the default zazen line until the first transition fires.
+- Console shows ~20-26 benign three.js "toNonIndexed(): already non-indexed" warnings on load; not a regression signal. Use `browser_console_messages` **without** `all: true` — with it you'll see stale HMR noise from earlier live-edit sessions.
+- The expanse ground grid is coarse (~2.4 world-units/vertex; only ONE vertex lands inside the pond). The pond dish carve in `world.js` is deliberately deep/wide (0.55 for db<1.5, falloff to 2.9) so bilinear interpolation keeps all ground under the water disc below the surface; if you shrink it the pond silently buries itself under the terrain.
+- The expanse haze at the top of the frame is intentional `THREE.Fog` depth fog (`main.js`), tuned closer on `/` (16/30) than island (20/38). Not a bug.
