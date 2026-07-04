@@ -6,7 +6,24 @@ export const WATER = 0xa9cbd4;
 export const ICE = 0xd8e4ea;
 export const FOAM = 0xdcecf0;
 
-function riverRibbon(curve, width) {
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// module-scope scratch: zero per-frame allocations
+const _mirror = new THREE.Color(), _base = new THREE.Color(WATER), _ice = new THREE.Color(ICE);
+const AMP = 0.03;
+
+// sky-mirror tint: WATER lerped 55% toward the sky/fog colour, then toward ICE
+// as the river freezes. Writes into `out` — no allocation.
+function mirror(out, frozen, ws) {
+  out.copy(_base).lerp(ws.lighting.bg, 0.55).lerp(_ice, frozen);
+}
+
+// banding by |k|: centre lane dark, edges pale. Contrast is pushed hard because
+// the mirror tint washes the water pale — a gentle spread reads as flat.
+const shade = (a) => (a < 0.45 ? 0.62 : a < 0.8 ? 0.90 : 1.22);
+
+// old low-res single-lane ribbon — used only for the dark banks now (not animated)
+function bankRibbon(curve, width) {
   const samples = 48;
   const positions = [];
   const pt = new THREE.Vector3(), tangent = new THREE.Vector3(), normal = new THREE.Vector3();
@@ -31,6 +48,71 @@ function riverRibbon(curve, width) {
   return new THREE.Mesh(geo, mat(WATER, { roughness: 0.55 }));
 }
 
+// laned, non-indexed ribbon: `lanes` strips across the width so vertex colors
+// can band the water and per-vertex swell can ripple it. Flat-shaded facets.
+// Returns { mesh, base, frames } — Tasks 3/6 consume `frames`.
+function buildLanedRibbon(curve, width, segments, lanes) {
+  const pt = new THREE.Vector3(), tangent = new THREE.Vector3(), normal = new THREE.Vector3();
+  const up = new THREE.Vector3(0, 1, 0);
+  const cols = []; // [segments+1][lanes+1] world positions
+  const frames = { points: [], normals: [] };
+  for (let i = 0; i <= segments; i++) {
+    const u = i / segments;
+    curve.getPoint(u, pt);
+    curve.getTangent(u, tangent);
+    normal.crossVectors(up, tangent).normalize();
+    frames.points.push(pt.clone());
+    frames.normals.push(normal.clone());
+    const w = width / 2 + Math.sin(u * 17) * 0.04;
+    const row = [];
+    for (let l = 0; l <= lanes; l++) {
+      const k = l / lanes - 0.5; // -0.5..0.5 across
+      row.push([pt.x + normal.x * w * 2 * k, 0, pt.z + normal.z * w * 2 * k, k]);
+    }
+    cols.push(row);
+  }
+  const positions = [], colors = [];
+  const pushV = ([x, y, z, k]) => { positions.push(x, y, z); const s = shade(Math.abs(k) * 2); colors.push(s, s, s); };
+  for (let i = 0; i < segments; i++) {
+    for (let l = 0; l < lanes; l++) {
+      const a = cols[i][l], b = cols[i][l + 1], c = cols[i + 1][l], d = cols[i + 1][l + 1];
+      pushV(a); pushV(b); pushV(c); pushV(b); pushV(d); pushV(c);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, mat(WATER, { roughness: 0.5, vertexColors: true }));
+  return { mesh, base: new Float32Array(positions), frames };
+}
+
+// two-octave traveling swell; flat shading turns each displaced facet into a
+// glint. Writes into the existing position array — no allocation.
+function swell(surf, t2, speed) {
+  const pos = surf.mesh.geometry.attributes.position;
+  const arr = pos.array, base = surf.base;
+  for (let v = 0; v < arr.length; v += 3) {
+    const bx = base[v], bz = base[v + 2];
+    arr[v + 1] = base[v + 1]
+      + AMP * speed * (Math.sin(bx * 5.1 + bz * 3.7 + t2 * 1.3) + 0.5 * Math.sin(bx * 9.3 - bz * 6.1 + t2 * 2.2));
+  }
+  pos.needsUpdate = true;
+  surf.mesh.geometry.computeVertexNormals();
+}
+
+// radial vertex-color banding for the pool disc: centre dark, rim pale
+function bandRadial(geo, maxR) {
+  const pos = geo.attributes.position;
+  const colors = [];
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i);
+    const s = shade(Math.min(1, Math.sqrt(x * x + z * z) / maxR));
+    colors.push(s, s, s);
+  }
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+}
+
 export function buildWater(island, mode = "island") {
   const group = new THREE.Group();
   island.add(group);
@@ -42,13 +124,15 @@ export function buildWater(island, mode = "island") {
     new THREE.Vector3(-4.2, 0, 2.6),
     new THREE.Vector3(-3.9, 0, 4.1),
   ]);
-  const river = riverRibbon(riverCurve, 0.55);
-  river.position.y = 0.035; // slightly above ground, below the 0.02+path? path is 0.02 — river crosses under bridge only
-  river.receiveShadow = true;
-  group.add(river);
+  const riverSurf = buildLanedRibbon(riverCurve, 0.55, 160, 4);
+  riverSurf.mesh.position.y = 0.035; // slightly above ground, below the path
+  riverSurf.mesh.receiveShadow = true;
+  group.add(riverSurf.mesh);
+  // reducedMotion: bake one static displaced frame, never animate
+  if (reducedMotion) swell(riverSurf, 1.7, 1);
 
-  // dark banks so the water reads as sunken
-  const banks = riverRibbon(riverCurve, 0.8);
+  // dark banks so the water reads as sunken (low-res, not animated)
+  const banks = bankRibbon(riverCurve, 0.8);
   banks.material = mat(COLORS.mossDark);
   banks.position.y = 0.028;
   group.add(banks);
@@ -59,8 +143,11 @@ export function buildWater(island, mode = "island") {
   step.castShadow = true;
   const cascade = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.44, 0.08), mat(FOAM, { transparent: true, opacity: 0.85 }));
   cascade.position.set(-3.9, 0.22, 3.7);
-  const pool = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.5, 0.06, 9), mat(WATER, { roughness: 0.5 }));
-  pool.position.set(-3.9, 0.03, 4.05);
+  const poolGeo = new THREE.CylinderGeometry(0.85, 0.78, 0.06, 24, 3).toNonIndexed();
+  bandRadial(poolGeo, 0.85);
+  const poolMat = mat(WATER, { roughness: 0.5, vertexColors: true });
+  const pool = new THREE.Mesh(poolGeo, poolMat);
+  pool.position.set(-3.9, 0.03, 4.15);
   group.add(step, cascade, pool);
 
   // the waterfall: island mode pours off the cliff edge, down past the
@@ -141,16 +228,20 @@ export function buildWater(island, mode = "island") {
   }
 
   const dummy = new THREE.Object3D();
-  const waterMats = [river.material, pool.material];
-  const riverC = new THREE.Color(WATER), iceC = new THREE.Color(ICE);
 
   const spots = {
-    misogi: { position: new THREE.Vector3(-3.9, 0, 3.95), facing: Math.PI },       // standing in the pool, facing the cascade
+    misogi: { position: new THREE.Vector3(-3.9, 0, 3.95), facing: Math.PI },       // standing at the pool's cascade edge, facing the cascade
   };
 
   function update(dt, t2, ws) {
     const frozen = ws.season === "winter" ? 1 - ws.seasonBlend : ws.nextSeason === "winter" ? ws.seasonBlend : 0;
-    for (const m of waterMats) m.color.lerpColors(riverC, iceC, frozen);
+    // sky-mirror tint: warm/ink sky, then ice as it freezes
+    mirror(_mirror, frozen, ws);
+    riverSurf.mesh.material.color.copy(_mirror);
+    poolMat.color.copy(_mirror);
+    // traveling swell — glides to stillness across the freeze window; skipped
+    // for reducedMotion (baked once at build time)
+    if (!reducedMotion && frozen < 1) swell(riverSurf, t2, 1 - frozen);
     cascade.material.opacity = 0.85 * (1 - frozen);
     fall.material.opacity = 0.8 * (1 - frozen * 0.55); // frozen falls: paler, still
     chunks.visible = frozen < 0.5;
