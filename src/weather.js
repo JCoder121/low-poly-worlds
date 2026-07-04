@@ -100,7 +100,7 @@ export class Weather {
     scene.add(this.mistGroup);
 
     // debug hook: force rain via window.__weather.rainOn = true (see report)
-    if (typeof window !== "undefined") window.__weather = this;
+    if (import.meta.env.DEV && typeof window !== "undefined") window.__weather = this;
   }
 
   // Build one falling particle. cfg=null → a hidden placeholder that recycles
@@ -163,10 +163,15 @@ export class Weather {
 
     for (let i = 0; i < this.max; i++) {
       let p = this.items[i];
-      // instances beyond the active density budget stay hidden
+      // instances beyond the active density budget stay hidden; keep resting
+      // them (rest timer still advances) so they respawn into the CURRENT
+      // config while hidden, instead of carrying a stale season's particle
+      // (e.g. spring petals) that would pop in once activeN grows again
       if (i >= activeN) {
         this.dummy.scale.setScalar(0);
         this.commit(i);
+        p.rest += dt;
+        if (p.rest > p.restFor) respawn(i);
         continue;
       }
       // placeholder (no active season particle): hide, recycle on its timer

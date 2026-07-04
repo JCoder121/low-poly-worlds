@@ -88,7 +88,9 @@ const weather = new Weather(scene, world.treePosition, reducedMotion);
 const landmarks = buildLandmarks(world.island, mode);
 
 const cycle = new Cycle({ reducedMotion });
-cycle.addStars(scene, camera); // camera framed + positioned above
+// expanse's ground fills the whole frame (no sky gap above an island edge to
+// hang stars in), so the star field would just be a dead draw call there.
+if (mode !== "expanse") cycle.addStars(scene, camera); // camera framed + positioned above
 
 const musashi = new Musashi(world.island, {
   fire: { position: new THREE.Vector3(0.25, 0, 0.55), facing: 1.1 }, // faces the fire
@@ -168,6 +170,7 @@ setTimeout(() => loaderEl.classList.add("done"), 450 * LOADER_LINES.length + 500
 
 const clock = new THREE.Clock();
 let t = 0;
+let nightUI = false; // hysteresis so the overlay text swap doesn't flicker at the threshold
 
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.1); // clamp tab-return jumps
@@ -176,6 +179,9 @@ renderer.setAnimationLoop(() => {
   cycle.update(dt);
   const ws = cycle.state;
   const L = ws.lighting;
+  if (!nightUI && ws.night >= 0.45) nightUI = true;
+  else if (nightUI && ws.night <= 0.35) nightUI = false;
+  document.body.classList.toggle("night", nightUI);
   renderer.setClearColor(L.bg);
   scene.fog.color.copy(L.bg);
   hemi.color.copy(L.hemiSky);

@@ -88,6 +88,7 @@ html, body {
   font-weight: 600;
   font-size: 1.55rem;
   letter-spacing: 0.04em;
+  transition: color 2s ease;
 }
 .wordmark-jp {
   display: block;
@@ -96,6 +97,7 @@ html, body {
   letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--ink-60);
+  transition: color 2s ease;
 }
 
 .status {
@@ -114,6 +116,7 @@ html, body {
   background: rgba(245, 240, 228, 0.82); /* readable where it crosses the island base */
   padding: 0.5rem 1rem;
   border-radius: 99px;
+  transition: opacity 0.6s ease, color 2s ease, background-color 2s ease;
 }
 .status.fading { opacity: 0; }
 
@@ -178,8 +181,17 @@ html, body {
   font-family: "IBM Plex Mono", monospace; font-size: 10px;
   letter-spacing: 0.2em; text-transform: uppercase;
   color: rgba(28, 35, 51, 0.55); text-decoration: none;
+  transition: color 2s ease;
 }
 .mode-toggle:hover { color: #c93e33; }
+
+/* ---------- night overlay (ink text disappears against the night sky bg) ---------- */
+
+body.night .wordmark-en { color: #f5f0e4; }
+body.night .wordmark-jp { color: rgba(245, 240, 228, 0.6); }
+body.night .status { color: rgba(245, 240, 228, 0.65); background: rgba(28, 35, 51, 0.82); }
+body.night .mode-toggle { color: rgba(245, 240, 228, 0.55); }
+body.night .mode-toggle:hover { color: #c93e33; }
 
 @media (max-width: 640px) {
   .wordmark { top: 1.4rem; left: 1.4rem; }

@@ -209,13 +209,13 @@ function cherryTree() {
 // ---------- season palettes ----------
 
 // Per-season target colors for lerp. Keys map onto tint targets registered in
-// buildWorld: top (island top face), hl/hm/hd (hill light/mid/dark),
+// buildWorld: top (island top face), hl/hd (hill light/dark),
 // pine (pine cones), blossom (cherry blobs; null → blobs hide for winter).
 const SEASON_TINTS = {
-  spring: { top: 0x8ca873, hl: 0xa9bc8b, hm: 0x8ca873, hd: 0x6e8b5e, pine: 0x6e8b5e, blossom: 0xf2b8c6 },
-  summer: { top: 0x7da065, hl: 0x9cb47e, hm: 0x7da065, hd: 0x5f7d52, pine: 0x5f7d52, blossom: 0x8fb277 },
-  autumn: { top: 0xa89a5e, hl: 0xbcae76, hm: 0xa89a5e, hd: 0x8a7d4d, pine: 0x6e8b5e, blossom: 0xd98e4a },
-  winter: { top: 0xe9e7dd, hl: 0xdfe3da, hm: 0xd4d8cc, hd: 0xc2c8bb, pine: 0x5c7355, blossom: null },
+  spring: { top: 0x8ca873, hl: 0xa9bc8b, hd: 0x6e8b5e, pine: 0x6e8b5e, blossom: 0xf2b8c6 },
+  summer: { top: 0x7da065, hl: 0x9cb47e, hd: 0x5f7d52, pine: 0x5f7d52, blossom: 0x8fb277 },
+  autumn: { top: 0xa89a5e, hl: 0xbcae76, hd: 0x8a7d4d, pine: 0x6e8b5e, blossom: 0xd98e4a },
+  winter: { top: 0xe9e7dd, hl: 0xdfe3da, hd: 0xc2c8bb, pine: 0x5c7355, blossom: null },
 };
 
 // Resolve a target color for a tint entry, applying the light-blob lighten offset.

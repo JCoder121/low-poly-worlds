@@ -187,9 +187,9 @@ export class Musashi {
     const q = new URLSearchParams(location.search);
     this.current = this.activities.includes(q.get("activity")) ? q.get("activity") : "zazen";
     this.activityTime = 0;
-    this.activityDuration = Number(q.get("duration")) || 75;
-    this.phase = "settled"; // settled | rising | walking | settling
-    this.fade = 1;
+    const dq = Number(q.get("duration"));
+    this.activityDuration = q.has("duration") && !isNaN(dq) && dq > 0 ? dq : 75;
+    this.phase = "settled"; // settled | walking | settling
     this.walk = null; // { curve, length, dist, target }
     this.reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.applyActivity(this.current);
@@ -322,7 +322,6 @@ export class Musashi {
     const w = this.walk;
     w.dist = Math.min(w.length, w.dist + dt * 0.85); // graceful pace, ~m/s
     const u = w.dist / w.length;
-    const eased = u < 0.08 ? u / 0.08 * u : u; // soft start
     const p = w.curve.getPointAt(Math.min(1, u));
     const tangent = w.curve.getTangentAt(Math.min(1, u));
     this.root.position.set(p.x, Math.abs(Math.sin(t * 6)) * 0.025, p.z);
@@ -336,7 +335,6 @@ export class Musashi {
       this.applyActivity(this.current);
       this.activityTime = 0;
       this.phase = "settling";
-      this.fade = 0.999; // reuse fade var as settle timer flag
       if (this.onActivityChange) this.onActivityChange(this.current);
     }
   }

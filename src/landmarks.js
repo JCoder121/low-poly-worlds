@@ -1,7 +1,7 @@
 // The quiet places: a small temple with its lantern, a raked sand garden,
 // and a river that slips under the road and off the edge of the world.
 import * as THREE from "three";
-import { COLORS, mat, rock, jitterGeometry } from "./world.js";
+import { COLORS, mat, rock } from "./world.js";
 
 const SAND_LIGHT = 0xefe6cf;
 const WATER = 0xa9cbd4;

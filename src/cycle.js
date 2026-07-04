@@ -43,7 +43,8 @@ export class Cycle {
     const sp = Number(q.get("speed"));
     this.speed = reducedMotion ? 0 : q.has("speed") && !isNaN(sp) ? Math.max(0, sp) : 1; // "?speed=0" must freeze
 
-    this.dayT = q.has("time") ? wrap01(Number(q.get("time"))) : DUSK;
+    const tq = Number(q.get("time"));
+    this.dayT = q.has("time") && !isNaN(tq) ? wrap01(tq) : DUSK;
     const s = q.get("season");
     this.seasonIndex = s == null ? 0
       : isNaN(Number(s)) ? Math.max(0, SEASONS.indexOf(s))
