@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Jeffrey Chen</title>
+  <title>musashi's hill</title>
   <meta name="description" content="A small clearing on a hill. Musashi trains, travelers pass." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌸</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
-<body>
+<body data-mode="expanse">
   <!-- themed loader, an homage to the atlas -->
   <div id="loader" aria-hidden="true">
     <div class="loader-inner">
@@ -34,16 +34,14 @@
   <canvas id="scene"></canvas>
 
   <header class="wordmark">
-    <span class="wordmark-en">Jeffrey Chen</span>
-    <span class="wordmark-jp">武蔵の丘 · musashi's hill</span>
+    <span class="wordmark-en">musashi's hill</span>
+    <span class="wordmark-season" id="season">spring</span>
   </header>
-
-  <p class="status" id="status" aria-live="polite">musashi is sitting by the fire</p>
 
   <!-- speech bubbles get appended here -->
   <div id="bubbles"></div>
 
-  <a class="mode-toggle" href="./expanse.html">expanse ↗</a>
+  <a class="mode-toggle" href="./island.html">island ↗</a>
 
   <script type="module" src="/src/main.js"></script>
 </body>

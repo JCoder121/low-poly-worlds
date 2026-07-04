@@ -103,51 +103,7 @@ const musashi = new Musashi(world.island, {
   ...water.spots,
 });
 
-// ---------- status line (musashi narrates; travelers may interrupt) ----------
-
-const statusEl = document.getElementById("status");
-const ACTIVITY_LINES = {
-  zazen: "musashi is sitting by the fire",
-  reading: "musashi is reading beneath the sakura",
-  painting: "musashi is painting",
-  kata: "musashi is practicing kata",
-  tea: "musashi is taking tea",
-  raking: "musashi is raking the garden",
-  temple: "musashi is bowing at the temple",
-  misogi: "musashi stands beneath the falls",
-  carving: "musashi is carving a bokken",
-  bridge: "musashi is watching the water",
-};
-const WALK_LINES = {
-  fire: "musashi walks to the fire", tree: "musashi walks to the sakura",
-  easel: "musashi walks to his easel", kata: "musashi walks to the clearing",
-  garden: "musashi walks to the garden", temple: "musashi walks to the temple",
-  misogi: "musashi walks to the falls", bridge: "musashi walks to the bridge",
-};
-let interrupted = false;
-
-function setStatus(text) {
-  statusEl.classList.add("fading");
-  setTimeout(() => {
-    statusEl.textContent = text;
-    statusEl.classList.remove("fading");
-  }, 600);
-}
-
-musashi.onActivityChange = (activity) => {
-  if (!interrupted) setStatus(ACTIVITY_LINES[activity]);
-};
-musashi.onWalkStart = (spotName) => { if (!interrupted) setStatus(WALK_LINES[spotName]); };
-
-const travelers = new Travelers(world.island, world.curve, camera, (text) => {
-  if (text) {
-    interrupted = true;
-    setStatus(text);
-  } else {
-    interrupted = false;
-    setStatus(ACTIVITY_LINES[musashi.activity]);
-  }
-});
+const travelers = new Travelers(world.island, world.curve, camera);
 
 // ---------- themed loader ----------
 
@@ -158,6 +114,10 @@ const LOADER_LINES = [
   "sharpening both swords…",
   "waiting for travelers…",
 ];
+// live season in the wordmark, driven by the cycle each frame
+const seasonEl = document.getElementById("season");
+let seasonShown = "";
+
 const loaderEl = document.getElementById("loader");
 const loaderMsg = document.getElementById("loader-msg");
 const loaderFill = document.getElementById("loader-fill");
@@ -181,6 +141,7 @@ renderer.setAnimationLoop(() => {
 
   cycle.update(dt);
   const ws = cycle.state;
+  if (ws.season !== seasonShown) { seasonShown = ws.season; seasonEl.textContent = ws.season; }
   const L = ws.lighting;
   if (!nightUI && ws.night >= 0.45) nightUI = true;
   else if (nightUI && ws.night <= 0.35) nightUI = false;

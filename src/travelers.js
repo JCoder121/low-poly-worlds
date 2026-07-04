@@ -68,17 +68,34 @@ function buildTraveler(kind) {
 const KINDS = ["monk", "farmer", "merchant", "ronin"];
 
 export class Travelers {
-  constructor(parent, curve, camera, statusFn) {
+  constructor(parent, curve, camera) {
     this.parent = parent;
     this.curve = curve;
     this.camera = camera;
-    this.statusFn = statusFn; // (text|null) → narrate arrivals
     this.drawLink = makeLinkDeck();
     this.bubbleLayer = document.getElementById("bubbles");
     this.active = null;
     this.nextSpawnAt = 7 + Math.random() * 5; // first visitor comes early
     this.elapsed = 0;
     this._v = new THREE.Vector3();
+
+    // Catmull-Rom hands each segment an equal param range regardless of its
+    // physical length, so walking in param units races through the expanse
+    // road's long end segments. Cache the arc length and step in world units.
+    this.curveLength = curve.getLength();
+    // Spawn just inside the fog: scan for where |x| first drops below 13 from
+    // each end. Island's curve never reaches |x|=13, so it stays 0..1.
+    this.uStart = 0;
+    this.uEnd = 1;
+    const SAMPLES = 200;
+    for (let i = 0; i <= SAMPLES; i++) {
+      if (Math.abs(curve.getPointAt(i / SAMPLES).x) < 13) { this.uStart = i / SAMPLES; break; }
+    }
+    for (let i = SAMPLES; i >= 0; i--) {
+      if (Math.abs(curve.getPointAt(i / SAMPLES).x) < 13) { this.uEnd = i / SAMPLES; break; }
+    }
+    this.uStart = THREE.MathUtils.clamp(this.uStart, 0, 1);
+    this.uEnd = THREE.MathUtils.clamp(this.uEnd, 0, 1);
   }
 
   spawn() {
@@ -89,15 +106,14 @@ export class Travelers {
     this.active = {
       kind,
       mesh,
-      u: reverse ? 1 : 0,
+      u: reverse ? this.uEnd : this.uStart,
       dir: reverse ? -1 : 1,
-      speed: 0.022 + Math.random() * 0.006, // curve-param units per second
+      speed: 0.36 + Math.random() * 0.08, // world-units per second
       spoke: false,
       paused: false,
       bubble: null,
       bubbleTimer: 0,
     };
-    this.statusFn(`a ${kind} approaches on the road`);
   }
 
   makeBubble(traveler) {
@@ -149,12 +165,13 @@ export class Travelers {
 
     const tr = this.active;
 
-    if (!tr.paused) tr.u += tr.dir * tr.speed * dt;
+    // step in world units so speed is uniform along the whole arc
+    if (!tr.paused) tr.u += tr.dir * (tr.speed / this.curveLength) * dt;
 
     // walk pose: position on curve, face along it, bob
-    const clamped = THREE.MathUtils.clamp(tr.u, 0, 1);
-    const p = this.curve.getPoint(clamped);
-    const tangent = this.curve.getTangent(clamped);
+    const clamped = THREE.MathUtils.clamp(tr.u, this.uStart, this.uEnd);
+    const p = this.curve.getPointAt(clamped);
+    const tangent = this.curve.getTangentAt(clamped);
     tr.mesh.position.set(p.x, p.y + Math.abs(Math.sin(t * 7)) * 0.03, p.z);
     tr.mesh.rotation.y = Math.atan2(tangent.x * tr.dir, tangent.z * tr.dir);
     tr.mesh.rotation.z = Math.sin(t * 7) * 0.04;
@@ -162,11 +179,10 @@ export class Travelers {
       tr.mesh.userData.cart.rotation.x = Math.sin(t * 9) * 0.02;
     }
 
-    // speak once, near the middle of the road
-    if (!tr.spoke && clamped > 0.42 && clamped < 0.62) {
+    // speak once, near the clearing (mode-independent: keyed off world x)
+    if (!tr.spoke && Math.abs(p.x) < 1.6) {
       tr.spoke = true;
       this.makeBubble(tr);
-      this.statusFn(`the ${tr.kind} knows a story`);
     }
 
     if (tr.bubble) {
@@ -175,13 +191,12 @@ export class Travelers {
         tr.bubbleTimer -= dt;
         if (tr.bubbleTimer <= 0) {
           this.dismissBubble(tr);
-          this.statusFn(null); // hand the status line back to musashi
         }
       }
     }
 
     // departed
-    if (tr.u < -0.02 || tr.u > 1.02) {
+    if (tr.u < this.uStart - 0.02 || tr.u > this.uEnd + 0.02) {
       this.dismissBubble(tr);
       this.parent.remove(tr.mesh);
       tr.mesh.traverse((o) => {
@@ -192,7 +207,6 @@ export class Travelers {
       });
       this.active = null;
       this.nextSpawnAt = this.elapsed + 20 + Math.random() * 25;
-      this.statusFn(null);
     }
   }
 }
