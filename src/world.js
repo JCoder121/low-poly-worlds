@@ -31,7 +31,7 @@ export function mat(color, opts = {}) {
   });
 }
 
-function jitterGeometry(geo, amount) {
+export function jitterGeometry(geo, amount) {
   const pos = geo.attributes.position;
   const seen = new Map(); // weld-aware jitter so faces stay attached
   for (let i = 0; i < pos.count; i++) {
@@ -105,7 +105,7 @@ function pineTree(height, color) {
   return g;
 }
 
-function rock(size) {
+export function rock(size) {
   const geo = jitterGeometry(
     new THREE.DodecahedronGeometry(size, 0).toNonIndexed(),
     size * 0.25
@@ -384,14 +384,12 @@ export function buildWorld(scene) {
   h1.position.set(-3.6, 0, -4.4);
   const h2 = domeHill(1.9, COLORS.mossDark);
   h2.position.set(1.4, 0, -5.2);
-  const h3 = domeHill(1.2, COLORS.moss);
-  h3.position.set(4.6, 0, -3.9);
-  island.add(h1, h2, h3);
+  island.add(h1, h2);
 
   // pines scattered on and behind the hills
   const pinePlacements = [
     [-5.6, -2.6, 1.1], [-2.2, -5.4, 1.35], [-0.6, -4.6, 0.9],
-    [3.2, -5.0, 1.2], [5.6, -3.2, 0.95], [6.2, -1.4, 0.8],
+    [3.2, -5.0, 1.2], [6.3, -2.3, 0.95], [6.2, -1.4, 0.8],
     [-6.4, -0.6, 0.9],
   ];
   for (const [x, z, h] of pinePlacements) {

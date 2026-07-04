@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { buildWorld, COLORS } from "./world.js";
+import { buildLandmarks } from "./landmarks.js";
 import { Musashi } from "./musashi.js";
 import { Travelers } from "./travelers.js";
 import { Cycle } from "./cycle.js";
@@ -75,6 +76,7 @@ if (!reducedMotion) {
 // ---------- world & actors ----------
 
 const world = buildWorld(scene);
+const landmarks = buildLandmarks(world.island);
 
 const cycle = new Cycle({ reducedMotion });
 cycle.addStars(scene, camera); // camera framed + positioned above
@@ -171,6 +173,7 @@ renderer.setAnimationLoop(() => {
 
   world.fire.update(t, ws.night);
   world.petals.update(dt, t);
+  landmarks.update(dt, t, ws);
   musashi.update(dt, t);
   travelers.update(dt, t);
 
