@@ -22,7 +22,8 @@ npm run build    # static build in dist/
 - `src/links.js` — the travelers' library (99 Wikipedia links, shuffled deck)
 - `src/cycle.js` — the day/night + season clock (`ws` state read by everything else)
 - `src/weather.js` — seasonal falling particles (petals/leaves/snow), rain, fireflies, mist
-- `src/landmarks.js` — temple, lantern, zen garden, river/bridge/waterfall
+- `src/landmarks.js` — temple, lantern, zen garden, bridge
+- `src/water.js` — the river, pool, and waterfall: laned faceted surface with per-vertex banding, sky-mirror tint, bank foam, koi, night sparkles, summer dragonflies
 - `src/main.js` — renderer, lighting, isometric camera + parallax, loader, status line
 
 ## Tuning knobs
@@ -74,3 +75,27 @@ scene instead of waiting for the clock:
 | `duration` | `?duration=15` | seconds before the next walk (default 75) |
 
 See `.claude/skills/verify/SKILL.md` for the full verification recipe.
+
+## v3 — the water
+
+The river/pool/waterfall, once a simple low-poly ribbon, is now the page's
+standout artifact (`src/water.js`, extracted whole from `landmarks.js`). The
+surface is a laned, non-indexed, flat-shaded ribbon — four lanes across the
+river's width, each vertex banded (dark center, pale edges) and rippled by a
+two-octave traveling swell, so every facet catches the light a little
+differently as it flows. The whole surface acts as a **sky-mirror**: its base
+color lerps toward the current lighting tint every frame, so the water reads
+rose at dawn, gold at dusk, ink-dark at night, and drains to a flat ice
+palette across the winter freeze.
+
+Around that surface: bank foam lines and ten drifting current streaks trace
+the river's flow; a widened pool holds three cycling ripple rings and two
+koi circling at the cascade's foot; the waterfall itself is three layered,
+gently wiggling ribbons with a lip fringe and splash rings, plus a
+two-strip cascade at the step. After dark, 22 sparkle glints wink across the
+water's surface; on summer days, two dragonflies drift and hover over the
+river, fading in and out rather than popping. Winter freezes all of it at
+once — motion stops, the wildlife hides, and the palette goes pale and still.
+
+See the "v3 water" section in `.claude/skills/verify/SKILL.md` for the full
+per-season/per-time-of-day verification recipe.

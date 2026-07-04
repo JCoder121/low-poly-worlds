@@ -42,16 +42,38 @@ pool to `[zazen, tea, reading]`. Winter excludes `misogi`.
 - Hover-pause verification: dispatch `mouseenter` directly on `document.querySelector('.bubble')` (not its parent), sample `getBoundingClientRect().left` every ~150ms before/during/after — unhovered drifts several px/sample, hovered `left` is bit-for-bit frozen (only the walk-bob `top` jitter continues, since that's t-based not position-based).
 - Night/lantern/stars: `ws.night` (0..1) is derived from the lighting keyframe interpolation between the dusk (0.55) and night (0.8) `KEYS` in `cycle.js` — it's a continuous ramp, not a hard threshold. It drives: star field opacity (`cycle.js addStars`), the stone lantern's point light + glow emissive (`landmarks.js` ~line 298-300, scales `ws.night * 1.6` / `* 1.1`), summer fireflies opacity (`weather.js updateFireflies`, `ws.night * pulse`). Use `?time=0.8&speed=0` for full night; `?time=0.55` (default) for zero night effects.
 - Season boundary: `?speed=60` advances one full season in ~12s real time — confirmed by watching the tree/terrain palette flip (e.g. `?season=winter` → spring → summer) and season-appropriate weather (fireflies only in summer, mist only in autumn, rain bursts only in spring) come and go.
-- River freezes in winter (`landmarks.js`); frozen river reads as a pale icy strip vs. the blue-green summer water.
+- River freezes in winter (`landmarks.js` pre-v3 / `water.js` in v3); frozen river reads as a pale icy strip vs. the blue-green summer water. See "v3 water" below for the full faceted-river behavior.
 - Tilt: dispatch `PointerEvent('pointermove')` on window, wait ~1 s for lerp, compare screenshots. Disabled entirely under reduced motion (see below).
 - Loader: `#loader` gets class `done`; catch phrases by polling `#loader` innerText immediately after `location.reload()` (a fresh evaluate call — reload kills the JS context of the polling one).
 - Narrow fallback: resize to 390×844 — on `/`, the frustum widens (`main.js frameCamera`, `Math.max(FRUSTUM, 16.5/aspect)`) so the island stays framed; on `/expanse.html`, frustum height is fixed (no island to fit) and only narrows horizontally on tall screens, to avoid clipping into the ground on portrait aspects.
-- Reduced motion: code-only check, no Playwright emulateMedia tool available. Five touchpoints:
+- Reduced motion: code-only check, no Playwright emulateMedia tool available. Six touchpoints:
   1. `main.js` (top-level `reducedMotion` const) — disables the `pointermove` parallax listener entirely.
   2. `cycle.js` `Cycle` constructor — `this.speed = reducedMotion ? 0 : ...`, i.e. the whole day/night/season clock freezes.
   3. `musashi.js` (`this.reducedMotion`, in `update()`) — skips `startWalk`, falls back to the old instant-fade activity swap instead of a physical walk.
   4. `weather.js` constructor + per-system guards — particle cap drops from 110 to 30; spring rain is skipped entirely (`if (!reducedMotion)` around rain setup); fireflies stop orbiting (position stays at `base`, only opacity pulses); autumn mist stops drifting.
   5. `style.css` `@media (prefers-reduced-motion: reduce)` block — disables the `.bubble` CSS animations (appear/leave).
+  6. `water.js` (top-level `reducedMotion` const, 9 touchpoints — `grep -n reducedMotion src/water.js`) — river swell is baked once at build time instead of animated per-frame; bank foam holds a static opacity level with no sine drift; foam streaks and ripple rings are hidden (`.visible = false` / opacity forced 0) rather than paused; waterfall ribbons skip the wiggle loop; koi keep circling but at 0.15× speed (slowed, not hidden — see Task 4); night sparkles hold a static `ws.night * 0.5` opacity with no drift; dragonflies are excluded from the visibility gate entirely (`&& !reducedMotion` in the target-opacity calc), so they never appear.
+
+## v3 water
+The river/pool/waterfall (`src/water.js`) is the diorama's standout artifact — a laned, flat-shaded faceted surface with sky-mirror tinting, foam, koi, night sparkles, and summer dragonflies. Verify with `?time= ?season= ?speed=` on both pages, same as everything else.
+
+**Sky-mirror tint** — water color = `WATER (0xa9cbd4)` lerped 55% toward `ws.lighting.bg` (each frame), then lerped toward `ICE (0xd8e4ea)` by `frozen`. So the pool/river should visibly warm/cool with the sky: rose-pale at `?time=0.0` (dawn), gold at the dusk default, ink-dark at `?time=0.8` (night). Screenshot each `&speed=0` and eyeball the tint against the sky gradient — they should read as the same light.
+
+**Gating conditions** (check by screenshot, not just code):
+| feature | visible when | hidden/altered when |
+|---|---|---|
+| bank foam lines + drifting streaks | `frozen < 0.5` (streaks) / always faint pulse otherwise | winter (`frozen→1`): both fade to nothing, no popping |
+| pool ripple rings (3, cycling) | `!reducedMotion && frozen < 1` | winter or reduced motion: invisible |
+| koi (2, circling the pool) | always, except hidden logic is speed not visibility | `frozen >= 0.5`: hidden; reduced motion: 0.15× speed (still visible, just slow) |
+| night sparkle glints (22, additive) | opacity `∝ ws.night`, so only shows as dusk shades into night (`?time=0.8` is the clean full-strength shot; `?time=0.55` default should show none) | winter: `(1 - frozen)` factor zeroes it regardless of `ws.night` |
+| summer dragonflies (2, over the river) | `ws.season === "summer" && ws.night < 0.3 && !reducedMotion` — i.e. summer daytime/dusk only, faded in/out over 1s (never popped) | any other season, night, winter, or reduced motion |
+| waterfall ribbons/lip fringe/splash ring | wiggling, cycling | winter: static + paled opacity, splash ring gone |
+
+**Frozen-stillness check**: at `?season=winter&speed=0`, take two screenshots ~3s apart — the faceted river surface, foam, streaks, rings, koi, and waterfall must be **pixel-identical** (no residual jitter). `frozen` is computed as `ws.season === "winter" ? 1 - ws.seasonBlend : ws.nextSeason === "winter" ? ws.seasonBlend : 0` — verify pre-winter (autumn nearing the boundary) shows a partial ice tint, not a hard cut.
+
+**Two-frame-diff technique** (for confirming motion, not just gating): navigate with a *live* clock (no `speed=0`, or a low nonzero speed), screenshot, wait 2-4 real seconds, screenshot again. Diff the water region only (crop to the river/pool/falls bounding box before comparing — the rest of the scene, Musashi, particles, etc. also moves and will swamp a full-frame diff). Expect to see: ripple-ring radius/opacity changed (different phase), at least one koi in a different position, foam streak positions shifted along the river, and subtle waterfall-ribbon wiggle. A Python `PIL.ImageChops.difference` on the cropped region with a nonzero bounding box is a fast confirmation before eyeballing.
+
+**Season-boundary sweep**: `?season=autumn&speed=60` and screenshot every ~1s starting immediately after navigate — the autumn→winter crossfade window is only `SEASON_FADE=20` sim-seconds wide (≈0.3s of real time at speed 60), so it's easy to blow past it between screenshots; sampling every ~1s from t=0 with no gaps is the reliable way to land a genuine blend frame (you'll know you have one when autumn leaf-fall particles and winter snow particles are both on screen at once, alongside a part-bare/part-orange tree). The water itself should show the same blend: still liquid-looking but already shifting toward the pale ice tone, no hard pop between the two states.
 
 ## Gotchas
 - Playwright MCP saves screenshots to claude_playground root (its cwd), not this dir — move them out after.
