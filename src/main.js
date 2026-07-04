@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { buildWorld, COLORS } from "./world.js";
 import { Weather } from "./weather.js";
 import { buildLandmarks } from "./landmarks.js";
+import { buildWater } from "./water.js";
 import { Musashi } from "./musashi.js";
 import { Travelers } from "./travelers.js";
 import { Cycle } from "./cycle.js";
@@ -86,6 +87,7 @@ if (!reducedMotion) {
 const world = buildWorld(scene, mode);
 const weather = new Weather(scene, world.treePosition, reducedMotion);
 const landmarks = buildLandmarks(world.island, mode);
+const water = buildWater(world.island, mode);
 
 const cycle = new Cycle({ reducedMotion });
 // expanse's ground fills the whole frame (no sky gap above an island edge to
@@ -98,6 +100,7 @@ const musashi = new Musashi(world.island, {
   easel: { position: new THREE.Vector3(1.1, 0, -1.5), facing: -2.6 },
   kata: { position: new THREE.Vector3(2.6, 0, 0.6), facing: -1.9 },
   ...landmarks.spots,
+  ...water.spots,
 });
 
 // ---------- status line (musashi narrates; travelers may interrupt) ----------
@@ -204,6 +207,7 @@ renderer.setAnimationLoop(() => {
   weather.update(dt, t, ws);
   world.seasons.update(ws);
   landmarks.update(dt, t, ws);
+  water.update(dt, t, ws);
   musashi.update(dt, t, ws);
   travelers.update(dt, t);
 
