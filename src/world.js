@@ -294,7 +294,7 @@ export class Fire {
     this.flameInner.scale.set(1 - flicker * 0.1, 1 + flicker * 0.28, 1 - flicker * 0.1);
     this.flameOuter.rotation.y = t * 0.8;
     this.flameInner.rotation.y = -t * 1.1;
-    this.light.intensity = (3.4 + flicker * 1.2) * (0.7 + night * 0.9);
+    this.light.intensity = (3.4 + flicker * 1.2) * (1.0 + night * 0.6);
   }
 }
 

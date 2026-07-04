@@ -35,18 +35,19 @@ function lerpKeys(dayT) {
   return out;
 }
 const smooth = (x) => x * x * (3 - 2 * x);
+const wrap01 = (x) => ((x % 1) + 1) % 1;
 
 export class Cycle {
   constructor({ reducedMotion = false } = {}) {
     const q = new URLSearchParams(location.search);
     const sp = Number(q.get("speed"));
-    this.speed = reducedMotion ? 0 : q.has("speed") && !isNaN(sp) ? sp : 1; // "?speed=0" must freeze
+    this.speed = reducedMotion ? 0 : q.has("speed") && !isNaN(sp) ? Math.max(0, sp) : 1; // "?speed=0" must freeze
 
-    this.dayT = q.has("time") ? Number(q.get("time")) % 1 : DUSK;
+    this.dayT = q.has("time") ? wrap01(Number(q.get("time"))) : DUSK;
     const s = q.get("season");
     this.seasonIndex = s == null ? 0
       : isNaN(Number(s)) ? Math.max(0, SEASONS.indexOf(s))
-      : Number(s) % 4;
+      : ((Number(s) % 4) + 4) % 4;
     this.seasonTime = 0; // seconds into current season
     this.stars = null;
     this.state = {};
@@ -80,7 +81,7 @@ export class Cycle {
 
   update(dt) {
     const step = dt * this.speed;
-    this.dayT = (this.dayT + step / DAY_LENGTH) % 1;
+    this.dayT = wrap01(this.dayT + step / DAY_LENGTH);
     this.seasonTime += step;
     const seasonLen = DAY_LENGTH * DAYS_PER_SEASON;
     if (this.seasonTime >= seasonLen) {
