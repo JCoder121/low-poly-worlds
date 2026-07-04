@@ -64,8 +64,14 @@ function blobShape(radius, variance, points = 11) {
   return shape;
 }
 
-function islandLayer(radius, variance, height, topColor, sideColor) {
-  const geo = new THREE.ExtrudeGeometry(blobShape(radius, variance), {
+function islandLayer(radius, variance, height, topColor, sideColor, hole = null) {
+  const shape = blobShape(radius, variance);
+  if (hole) {
+    const path = new THREE.Path();
+    path.absarc(hole.x, -hole.z, hole.r, 0, Math.PI * 2, true); // clockwise; shape-y maps to world -z after rotateX(-π/2)
+    shape.holes.push(path);
+  }
+  const geo = new THREE.ExtrudeGeometry(shape, {
     depth: height,
     bevelEnabled: false,
   });
@@ -341,13 +347,9 @@ export function buildWorld(scene, mode = "island") {
   let topMaterial; // ground/top-face material registered under tint key "top"
 
   if (mode === "island") {
-    const top = islandLayer(7.4, 0.14, 1.1, COLORS.moss, COLORS.cliff);
-    top.position.y = -1.1;
-    const mid = islandLayer(8.3, 0.18, 1.5, COLORS.cliff, COLORS.cliffDark);
-    mid.position.y = -2.7;
-    const foot = islandLayer(6.2, 0.3, 1.0, COLORS.cliffDark, COLORS.cliffDark);
-    foot.position.set(0.5, -3.8, -0.4);
-    island.add(top, mid, foot);
+    const top = islandLayer(7.6, 0.10, 1.6, COLORS.moss, COLORS.cliff, { x: -2.7, z: 4.7, r: 1.35 });
+    top.position.y = -1.6; // top face stays at world y=0
+    island.add(top);
     topMaterial = top.material[0];
 
     // soft contact shadow on the paper, far below the floating island
@@ -360,7 +362,7 @@ export function buildWorld(scene, mode = "island") {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 256, 256);
     const shadow = new THREE.Mesh(
-      new THREE.PlaneGeometry(19, 15),
+      new THREE.PlaneGeometry(17, 13.5),
       new THREE.MeshBasicMaterial({
         map: new THREE.CanvasTexture(shadowCanvas),
         transparent: true,
@@ -368,7 +370,7 @@ export function buildWorld(scene, mode = "island") {
       })
     );
     shadow.rotation.x = -Math.PI / 2;
-    shadow.position.y = -5.6;
+    shadow.position.y = -3.2;
     island.add(shadow);
   } else {
     // expanse: one big rolling ground plane instead of the floating island tiers
@@ -376,19 +378,23 @@ export function buildWorld(scene, mode = "island") {
     groundGeo.rotateX(-Math.PI / 2);
     // gentle rolling facets, flat near the clearing
     const pos = groundGeo.attributes.position;
-    // sunken basin the river/waterfall ends in — carved into the ground so the
-    // basin/mist/fall (added later in landmarks.js) read as an actual hollow
-    // rather than sitting invisibly under a flat plane.
-    const BASIN_X = -3.9, BASIN_Z = 5.2, BASIN_R = 2.4, BASIN_DEPTH = 0.5;
+    // dish under the koi pond — water.js builds the same sunken bowl/ring rig
+    // in both modes. The grid is coarse (~2.4 units/vertex; only one vertex
+    // lands inside the pond), so the dish must be deep and WIDE enough that
+    // bilinear interpolation keeps every point under the 1.1-radius water disc
+    // (surface y -0.18) below roughly -0.25; the moss bank ring hides the rim.
+    // Same center as the island slab's pond hole.
+    const POND_X = -2.7, POND_Z = 4.7;
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i), z = pos.getZ(i);
       const d = Math.hypot(x, z);
       const roll = d > 8 ? (d - 8) * 0.04 : 0;
       let y = Math.sin(x * 0.45) * Math.cos(z * 0.38) * roll + (Math.random() - 0.5) * Math.min(0.18, roll);
-      const db = Math.hypot(x - BASIN_X, z - BASIN_Z);
-      if (db < BASIN_R) {
-        const bt = 1 - db / BASIN_R;
-        y -= BASIN_DEPTH * bt * bt;
+      const db = Math.hypot(x - POND_X, z - POND_Z);
+      if (db < 1.5) {
+        y -= 0.55;
+      } else if (db < 2.9) {
+        y -= 0.55 * (1 - (db - 1.5) / 1.4) ** 2;
       }
       pos.setY(i, y);
     }
@@ -453,6 +459,7 @@ export function buildWorld(scene, mode = "island") {
 
   const tree = cherryTree();
   tree.position.set(-2.3, 0, -1.2);
+  tree.scale.setScalar(1.18);
   island.add(tree);
 
   const curve = makePathCurve(mode);
