@@ -5,6 +5,7 @@ import { COLORS, mat } from "./world.js";
 export const WATER = 0x93bfd0;
 export const ICE = 0xd8e4ea;
 export const FOAM = 0xdcecf0;
+export const FOAM_LINE = 0xfdfaf2;
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -92,6 +93,37 @@ function buildLanedRibbon(curve, width, segments, lanes) {
   return { mesh, base: new Float32Array(positions), frames };
 }
 
+// foam sits above the swell's peak (river mesh y 0.035 + AMP 0.03 = 0.065 max)
+// so it never z-fights/stitches into the animated water surface.
+const FOAM_Y = 0.08;
+const FOAM_STRIP_W = 0.035;
+
+// bank foam: two thin strips hugging both edges of the river, built straight
+// from the ribbon's saved curve frames — no fresh curve sampling needed.
+// MeshBasicMaterial + DoubleSide sidesteps the winding trap from Task 2
+// (thin unlit strips don't need correct-facing normals to be visible).
+function buildFoamEdges(frames, width) {
+  const { points, normals } = frames;
+  const segments = points.length - 1;
+  const positions = [];
+  for (let side = -1; side <= 1; side += 2) {
+    for (let i = 0; i < segments; i++) {
+      const u0 = i / segments, u1 = (i + 1) / segments;
+      const w0 = width / 2 + Math.sin(u0 * 17) * 0.04 - 0.02;
+      const w1 = width / 2 + Math.sin(u1 * 17) * 0.04 - 0.02;
+      const p0 = points[i], n0 = normals[i], p1 = points[i + 1], n1 = normals[i + 1];
+      const a = [p0.x + n0.x * side * w0, FOAM_Y, p0.z + n0.z * side * w0];
+      const b = [p0.x + n0.x * side * (w0 + FOAM_STRIP_W), FOAM_Y, p0.z + n0.z * side * (w0 + FOAM_STRIP_W)];
+      const c = [p1.x + n1.x * side * w1, FOAM_Y, p1.z + n1.z * side * w1];
+      const d = [p1.x + n1.x * side * (w1 + FOAM_STRIP_W), FOAM_Y, p1.z + n1.z * side * (w1 + FOAM_STRIP_W)];
+      positions.push(...a, ...c, ...b, ...b, ...c, ...d);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geo;
+}
+
 // two-octave traveling swell; flat shading turns each displaced facet into a
 // glint. Writes into the existing position array — no allocation.
 function swell(surf, t2, speed) {
@@ -135,6 +167,23 @@ export function buildWater(island, mode = "island") {
   group.add(riverSurf.mesh);
   // reducedMotion: bake one static displaced frame, never animate
   if (reducedMotion) swell(riverSurf, 1.7, 1);
+  const FRAME_N = riverSurf.frames.points.length;
+
+  // bank foam lines: crisp thin threads hugging both edges of the whole course
+  const foamMat = new THREE.MeshBasicMaterial({ color: FOAM_LINE, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide });
+  const foamEdges = new THREE.Mesh(buildFoamEdges(riverSurf.frames, 0.55), foamMat);
+  group.add(foamEdges);
+
+  // drifting foam streaks: short dashes carried downstream by the current
+  const STREAK_N = 10;
+  const streakMat = new THREE.MeshBasicMaterial({ color: FOAM_LINE, transparent: true, opacity: 0.65, depthWrite: false });
+  const streaks = new THREE.InstancedMesh(new THREE.BoxGeometry(0.14, 0.008, 0.03), streakMat, STREAK_N);
+  group.add(streaks);
+  const streakState = Array.from({ length: STREAK_N }, () => ({
+    u: Math.random(),
+    lane: (Math.random() - 0.5) * 0.6,
+    speed: 0.018 + Math.random() * 0.01,
+  }));
 
   // dark banks so the water reads as sunken (low-res, not animated)
   const banks = bankRibbon(riverCurve, 0.8);
@@ -265,6 +314,30 @@ export function buildWater(island, mode = "island") {
       m.position.y = mistBaseY + Math.sin(t2 * 0.9 + i * 2.1) * 0.12;
       m.material.opacity = 0.16 + Math.sin(t2 * 1.3 + i) * 0.05;
     });
+
+    // bank foam: slow opacity pulse, calmed to a static value under
+    // reducedMotion; fades out entirely as the river freezes.
+    foamMat.opacity = (reducedMotion ? 0.4 : 0.4 + Math.sin(t2 * 0.9) * 0.12) * (1 - frozen);
+
+    // drifting current streaks: hidden once mostly frozen or under reducedMotion
+    streaks.visible = frozen < 0.5 && !reducedMotion;
+    if (streaks.visible) {
+      const { points, normals } = riverSurf.frames;
+      streakState.forEach((s, i) => {
+        s.u += s.speed * dt;
+        if (s.u > 0.98) s.u -= 0.96;
+        const idx = Math.min(FRAME_N - 1, Math.floor(s.u * FRAME_N));
+        const p = points[idx], n = normals[idx];
+        const nextIdx = idx + 1 >= FRAME_N ? idx : idx + 1;
+        dummy.position.set(p.x + n.x * s.lane * 0.5, FOAM_Y, p.z + n.z * s.lane * 0.5);
+        dummy.rotation.set(0, Math.atan2(points[nextIdx].x - p.x, points[nextIdx].z - p.z), 0);
+        const pulse = 0.6 + 0.4 * Math.sin(t2 * 1.7 + i * 2.4);
+        dummy.scale.set(pulse, 1, pulse);
+        dummy.updateMatrix();
+        streaks.setMatrixAt(i, dummy.matrix);
+      });
+      streaks.instanceMatrix.needsUpdate = true;
+    }
   }
 
   return { spots, update };
