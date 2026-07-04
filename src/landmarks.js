@@ -239,7 +239,7 @@ export function buildLandmarks(island) {
 
   const spots = {
     garden: { position: new THREE.Vector3(1.8, 0, -1.9), facing: -0.9 },   // at the garden's near edge, rake in hand
-    temple: { position: new THREE.Vector3(3.7, 0, -2.9), facing: Math.PI * 0.78 }, // kneeling before the steps
+    temple: { position: new THREE.Vector3(3.35, 0, -2.55), facing: Math.PI * 0.78 }, // kneeling before the steps, clear of the roof overhang
     misogi: { position: new THREE.Vector3(-3.9, 0, 3.95), facing: Math.PI },       // standing in the pool, facing the cascade
     bridge: { position: new THREE.Vector3(-4.05, 0.16, 2.15), facing: 2.5 },       // on the deck, gazing downstream
   };

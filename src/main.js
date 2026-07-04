@@ -86,6 +86,7 @@ const musashi = new Musashi(world.island, {
   tree: { position: new THREE.Vector3(-1.75, 0, -0.7), facing: 0.9 }, // back to the sakura, facing the clearing
   easel: { position: new THREE.Vector3(1.1, 0, -1.5), facing: -2.6 },
   kata: { position: new THREE.Vector3(2.6, 0, 0.6), facing: -1.9 },
+  ...landmarks.spots,
 });
 
 // ---------- status line (musashi narrates; travelers may interrupt) ----------
@@ -96,6 +97,18 @@ const ACTIVITY_LINES = {
   reading: "musashi is reading beneath the sakura",
   painting: "musashi is painting",
   kata: "musashi is practicing kata",
+  tea: "musashi is taking tea",
+  raking: "musashi is raking the garden",
+  temple: "musashi is bowing at the temple",
+  misogi: "musashi stands beneath the falls",
+  carving: "musashi is carving a bokken",
+  bridge: "musashi is watching the water",
+};
+const WALK_LINES = {
+  fire: "musashi walks to the fire", tree: "musashi walks to the sakura",
+  easel: "musashi walks to his easel", kata: "musashi walks to the clearing",
+  garden: "musashi walks to the garden", temple: "musashi walks to the temple",
+  misogi: "musashi walks to the falls", bridge: "musashi walks to the bridge",
 };
 let interrupted = false;
 
@@ -110,6 +123,7 @@ function setStatus(text) {
 musashi.onActivityChange = (activity) => {
   if (!interrupted) setStatus(ACTIVITY_LINES[activity]);
 };
+musashi.onWalkStart = (spotName) => { if (!interrupted) setStatus(WALK_LINES[spotName]); };
 
 const travelers = new Travelers(world.island, world.curve, camera, (text) => {
   if (text) {
@@ -174,7 +188,7 @@ renderer.setAnimationLoop(() => {
   world.fire.update(t, ws.night);
   world.petals.update(dt, t);
   landmarks.update(dt, t, ws);
-  musashi.update(dt, t);
+  musashi.update(dt, t, ws);
   travelers.update(dt, t);
 
   renderer.render(scene, camera);

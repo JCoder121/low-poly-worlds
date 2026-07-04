@@ -136,43 +136,81 @@ export class Musashi {
     this.easel.visible = false;
     this.root.add(this.easel);
 
+    // tea set: kettle by the fire spot, cup held
+    this.tea = new THREE.Group();
+    const kettle = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 4), mat(0x4a4038));
+    kettle.position.y = 0.07;
+    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.1, 5), mat(0x4a4038));
+    spout.position.set(0.09, 0.09, 0);
+    spout.rotation.z = -0.9;
+    this.tea.add(kettle, spout);
+    this.tea.visible = false;
+    this.root.add(this.tea);
+    this.cup = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.028, 0.05, 6), mat(0xfdfaf2));
+    this.cup.visible = false;
+    this.armR.add(this.cup);
+    this.cup.position.y = -0.38;
+
+    // rake: pole + toothed head, held in both hands while raking
+    this.rake = new THREE.Group();
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.95, 5), mat(COLORS.trunk));
+    const rakeHead = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.03, 0.05), mat(COLORS.trunk));
+    rakeHead.position.y = -0.475;
+    this.rake.add(pole, rakeHead);
+    this.rake.visible = false;
+    this.rake.position.y = -0.3;
+    this.rake.rotation.x = 0.5;
+    this.armR.add(this.rake);
+
+    // bokken blank + carving knife
+    this.bokken = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.5, 0.05), mat(0xb59a5e));
+    this.bokken.visible = false;
+    this.bokken.position.y = -0.38;
+    this.bokken.rotation.x = 1.2;
+    this.armL.add(this.bokken);
+    this.knife = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.12, 0.03), mat(0xcfd2d6));
+    this.knife.visible = false;
+    this.knife.position.y = -0.38;
+    this.armR.add(this.knife);
+
+    this.hideProps = () => {
+      this.tea.visible = this.cup.visible = this.rake.visible = this.bokken.visible = this.knife.visible = false;
+    };
+
     parent.add(this.root);
 
-    // collect materials for fade transitions
-    this.fadeMats = [];
-    this.body.traverse((o) => {
-      if (o.isMesh) {
-        for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
-          m.transparent = true;
-          this.fadeMats.push(m);
-        }
-      }
-    });
-
-    this.activities = ["zazen", "kata", "reading", "painting"];
-    this.index = 0;
+    this.activities = ["zazen", "kata", "reading", "painting", "tea", "raking", "temple", "misogi", "carving", "bridge"];
+    this.SPOT_FOR = {
+      zazen: "fire", tea: "fire", kata: "kata", reading: "tree", carving: "tree",
+      painting: "easel", raking: "garden", temple: "temple", misogi: "misogi", bridge: "bridge",
+    };
+    const q = new URLSearchParams(location.search);
+    this.current = this.activities.includes(q.get("activity")) ? q.get("activity") : "zazen";
     this.activityTime = 0;
-    this.activityDuration = 75; // seconds per activity
-    this.phase = "settled"; // settled | fadeOut | fadeIn
+    this.activityDuration = Number(q.get("duration")) || 75;
+    this.phase = "settled"; // settled | rising | walking | settling
     this.fade = 1;
-    this.applyActivity(this.activities[0]);
+    this.walk = null; // { curve, length, dist, target }
+    this.reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    this.applyActivity(this.current);
   }
 
   get activity() {
-    return this.activities[this.index];
+    return this.current;
   }
 
   // hard-set the figure into an activity's base pose and location
   applyActivity(name) {
-    const spot = this.spots[name === "zazen" ? "fire" : name === "reading" ? "tree" : name === "painting" ? "easel" : "kata"];
+    const spot = this.spots[this.SPOT_FOR[name]];
     this.root.position.copy(spot.position);
     this.root.rotation.y = spot.facing;
 
     this.scroll.visible = name === "reading";
     this.easel.visible = name === "painting";
     this.heldKatana.visible = name === "kata";
+    this.hideProps();
 
-    const seated = name !== "kata";
+    const seated = !["kata", "misogi", "bridge", "raking"].includes(name);
     this.body.position.y = seated ? -0.24 : 0;
     this.skirt.scale.set(seated ? 1.25 : 1, seated ? 0.75 : 1, seated ? 1.25 : 1);
 
@@ -203,31 +241,122 @@ export class Musashi {
     } else if (name === "kata") {
       this.armL.rotation.set(1.15, 0, 0.35);
       this.armR.rotation.set(1.15, 0, -0.35);
+    } else if (name === "tea") {
+      this.tea.visible = true;
+      this.tea.position.set(0.28, 0, 0.1);
+      this.cup.visible = true;
+      this.armL.rotation.set(0.5, 0, 0.4);
+      this.armR.rotation.set(0.85, 0, -0.3);
+      this.headGroup.rotation.x = 0.1;
+    } else if (name === "raking") {
+      this.rake.visible = true;
+      this.armL.rotation.set(0.75, 0, 0.3);
+      this.armR.rotation.set(0.75, 0, -0.3);
+      this.headGroup.rotation.x = 0.3;
+    } else if (name === "temple") {
+      this.headGroup.rotation.x = 0.2; // kneeling; bow handled per-frame
+      this.armL.rotation.set(0.4, 0, 0.35);
+      this.armR.rotation.set(0.4, 0, -0.35);
+    } else if (name === "misogi") {
+      // standing beneath the cascade, hands together in gassho
+      this.body.position.y = 0;
+      this.skirt.scale.set(1, 1, 1);
+      this.armL.rotation.set(1.05, 0, 0.55);
+      this.armR.rotation.set(1.05, 0, -0.55);
+      this.headGroup.rotation.x = 0.12;
+    } else if (name === "carving") {
+      this.bokken.visible = this.knife.visible = true;
+      this.armL.rotation.set(0.8, 0, 0.3);
+      this.armR.rotation.set(0.95, 0, -0.25);
+      this.headGroup.rotation.x = 0.4;
+    } else if (name === "bridge") {
+      this.body.position.y = 0;
+      this.skirt.scale.set(1, 1, 1);
+      this.armL.rotation.set(0.15, 0, 0.18);
+      this.armR.rotation.set(0.15, 0, -0.18);
+      this.headGroup.rotation.x = 0.35; // watching the water below
     }
   }
 
-  update(dt, t) {
+  pickNext(ws) {
+    const NIGHT_SET = ["zazen", "tea", "reading"];
+    let pool = ws && ws.night > 0.5 ? NIGHT_SET : this.activities;
+    pool = pool.filter((a) => a !== this.current);
+    // several activities share a spot (zazen/tea @ fire, reading/carving @ tree) —
+    // exclude those too, since a same-spot "walk" degenerates to a zero-length
+    // path (NaN side vector) and there's nowhere to visibly walk to anyway.
+    pool = pool.filter((a) => this.SPOT_FOR[a] !== this.SPOT_FOR[this.current]);
+    if (ws && ws.season === "winter") pool = pool.filter((a) => a !== "misogi");
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  startWalk(target) {
+    const from = this.root.position.clone();
+    const to = this.spots[this.SPOT_FOR[target]].position.clone();
+    const delta = to.clone().sub(from);
+    // guard against a degenerate (near-zero) delta producing a NaN side vector
+    const side = delta.lengthSq() > 1e-6
+      ? new THREE.Vector3(-delta.z, 0, delta.x).normalize()
+      : new THREE.Vector3(1, 0, 0);
+    const pts = [from];
+    for (const k of [0.35, 0.68]) { // two gently jittered waypoints
+      pts.push(from.clone().lerp(to, k).add(side.clone().multiplyScalar((Math.random() - 0.5) * 1.3)));
+    }
+    pts.push(to);
+    const curve = new THREE.CatmullRomCurve3(pts);
+    this.walk = { curve, length: curve.getLength(), dist: 0, target };
+    this.phase = "walking";
+    this.scroll.visible = this.easel.visible = this.heldKatana.visible = false;
+    this.hideProps();
+    // stand up for the road
+    this.body.position.y = 0;
+    this.skirt.scale.set(1, 1, 1);
+    this.armL.rotation.set(0, 0, 0.12);
+    this.armR.rotation.set(0, 0, -0.12);
+    this.headGroup.rotation.set(0, 0, 0);
+    this.body.rotation.set(0, 0, 0);
+    if (this.onWalkStart) this.onWalkStart(this.SPOT_FOR[target]);
+  }
+
+  updateWalk(dt, t) {
+    const w = this.walk;
+    w.dist = Math.min(w.length, w.dist + dt * 0.85); // graceful pace, ~m/s
+    const u = w.dist / w.length;
+    const eased = u < 0.08 ? u / 0.08 * u : u; // soft start
+    const p = w.curve.getPointAt(Math.min(1, u));
+    const tangent = w.curve.getTangentAt(Math.min(1, u));
+    this.root.position.set(p.x, Math.abs(Math.sin(t * 6)) * 0.025, p.z);
+    this.root.rotation.y = Math.atan2(tangent.x, tangent.z);
+    this.body.rotation.z = Math.sin(t * 6) * 0.03;
+    this.armL.rotation.x = Math.sin(t * 6) * 0.35;
+    this.armR.rotation.x = -Math.sin(t * 6) * 0.35;
+    if (u >= 1) {
+      this.current = w.target;
+      this.walk = null;
+      this.applyActivity(this.current);
+      this.activityTime = 0;
+      this.phase = "settling";
+      this.fade = 0.999; // reuse fade var as settle timer flag
+      if (this.onActivityChange) this.onActivityChange(this.current);
+    }
+  }
+
+  update(dt, t, ws) {
     this.activityTime += dt;
 
-    // ---- activity switching with a fade ----
     if (this.phase === "settled" && this.activityTime > this.activityDuration) {
-      this.phase = "fadeOut";
-    }
-    if (this.phase === "fadeOut") {
-      this.fade = Math.max(0, this.fade - dt * 2.2);
-      if (this.fade === 0) {
-        this.index = (this.index + 1) % this.activities.length;
-        this.applyActivity(this.activity);
+      const next = this.pickNext(ws);
+      if (this.reducedMotion) { // old fade behavior for reduced motion
+        this.current = next;
+        this.applyActivity(next);
         this.activityTime = 0;
-        this.phase = "fadeIn";
-        if (this.onActivityChange) this.onActivityChange(this.activity);
+        if (this.onActivityChange) this.onActivityChange(next);
+      } else {
+        this.startWalk(next);
       }
-    } else if (this.phase === "fadeIn") {
-      this.fade = Math.min(1, this.fade + dt * 1.8);
-      if (this.fade === 1) this.phase = "settled";
     }
-    for (const m of this.fadeMats) m.opacity = this.fade;
-    this.scroll.material.opacity = this.fade;
+    if (this.phase === "walking") { this.updateWalk(dt, t); return; }
+    if (this.phase === "settling") { this.phase = "settled"; }
 
     // ---- per-activity idle motion ----
     const breathe = Math.sin(t * 1.4) * 0.015;
@@ -246,7 +375,7 @@ export class Musashi {
       this.strokes.forEach((s, i) => {
         const appearAt = (i + 1) / (this.strokes.length + 1);
         if (progress > appearAt) {
-          s.material.opacity = Math.min(0.85, s.material.opacity + dt * 0.5) * this.fade;
+          s.material.opacity = Math.min(0.85, s.material.opacity + dt * 0.5);
         }
       });
     } else if (a === "kata") {
@@ -263,6 +392,31 @@ export class Musashi {
       this.armR.rotation.x = armX;
       this.body.rotation.x = lift * -0.06 + (lift === 0 ? Math.sin(t * 1.4) * 0.008 : 0);
       this.headGroup.rotation.x = lift * 0.15;
+    } else if (a === "tea") {
+      const sip = Math.max(0, Math.sin(t * 0.45)); // slow raise-and-sip
+      this.armR.rotation.x = 0.85 + sip * 0.5;
+      this.headGroup.rotation.x = 0.1 - sip * 0.12;
+    } else if (a === "raking") {
+      const push = Math.sin(t * 0.9);
+      this.body.rotation.x = 0.06 + push * 0.05;
+      this.armL.rotation.x = 0.75 + push * 0.2;
+      this.armR.rotation.x = 0.75 + push * 0.2;
+    } else if (a === "temple") {
+      // a deep bow every ~12s: down 2s, hold 3s, up 2s
+      const c = (this.activityTime % 12) / 12;
+      let bow = 0;
+      if (c < 0.17) bow = easeInOut(c / 0.17);
+      else if (c < 0.42) bow = 1;
+      else if (c < 0.58) bow = 1 - easeInOut((c - 0.42) / 0.16);
+      this.body.rotation.x = bow * 0.7;
+      this.headGroup.rotation.x = 0.2 + bow * 0.35;
+    } else if (a === "misogi") {
+      this.body.rotation.x = Math.sin(t * 0.5) * 0.008; // near-stillness under the falls
+    } else if (a === "carving") {
+      const stroke = Math.sin(t * 3.2);
+      this.armR.rotation.x = 0.95 + Math.max(0, stroke) * 0.22; // whittling pushes
+    } else if (a === "bridge") {
+      this.headGroup.rotation.y = Math.sin(t * 0.2) * 0.15; // following the current
     }
   }
 }
