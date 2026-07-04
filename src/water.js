@@ -247,6 +247,36 @@ export function buildWater(island, mode = "island") {
   pool.position.set(-3.9, 0.03, 4.15);
   group.add(step, pool);
 
+  // night sparkle glints: 16 scattered along the river (jittered off the
+  // ribbon's saved curve frames) + 6 in the pool disc. One Points cloud, one
+  // draw call; opacity alone carries the day/night reveal.
+  const SPARKLE_POOL = new THREE.Vector3(-3.9, 0, 4.15);
+  function buildSparkles(frames) {
+    const { points, normals } = frames;
+    const n = points.length;
+    const positions = [];
+    for (let i = 0; i < 16; i++) {
+      const idx = Math.floor(Math.random() * n);
+      const p = points[idx], nrm = normals[idx];
+      const off = (Math.random() * 2 - 1) * 0.2;
+      positions.push(p.x + nrm.x * off, 0.06, p.z + nrm.z * off);
+    }
+    for (let i = 0; i < 6; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(Math.random()) * 0.7; // stays inside the 0.85 rim
+      positions.push(SPARKLE_POOL.x + Math.cos(ang) * r, 0.08, SPARKLE_POOL.z + Math.sin(ang) * r);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    return geo;
+  }
+  const sparkleMat = new THREE.PointsMaterial({
+    color: 0xfdfaf2, size: 2.5, transparent: true, opacity: 0, depthWrite: false,
+    blending: THREE.AdditiveBlending, sizeAttenuation: false, fog: false,
+  });
+  const sparkles = new THREE.Points(buildSparkles(riverSurf.frames), sparkleMat);
+  group.add(sparkles);
+
   // all animated waterfall/cascade ribbons live here; one update loop wiggles
   // and opacity-fades the lot. `fullFade` marks strips that vanish entirely on
   // freeze (the cascade), vs. the fall columns that only pale.
@@ -310,6 +340,44 @@ export function buildWater(island, mode = "island") {
   const koiState = [
     { g: koiA, angle: 0, radius: 0.32, speed: 0.5, pauseTimer: 1.0 },
     { g: koiB, angle: 2.1, radius: 0.45, speed: 0.38, pauseTimer: -3.0 },
+  ];
+
+  // summer dragonflies: a body + two flapping wing pairs, faded in/out (never
+  // popped) via a per-instance `vis` ramp so season/night transitions read as
+  // arriving/leaving rather than switching. Static ±60° spread lives on
+  // rotation.z so the per-frame flutter (rotation.x) can overwrite freely.
+  const DRAGONFLY_BODY = 0x4e7d8a, DRAGONFLY_WING = 0xfdfaf2;
+  const dragonflyWingGeo = new THREE.PlaneGeometry(0.09, 0.025);
+  function buildDragonfly() {
+    const g = new THREE.Group();
+    const bodyMat = mat(DRAGONFLY_BODY, { transparent: true, opacity: 0 });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.14, 4), bodyMat);
+    body.rotation.x = Math.PI / 2; // lie horizontal, length along local z
+    g.add(body);
+    const wings = [];
+    const wingMats = [bodyMat];
+    [[-1, 0.03], [1, 0.03], [-1, -0.03], [1, -0.03]].forEach(([side, zOff]) => {
+      const wm = new THREE.MeshBasicMaterial({
+        color: DRAGONFLY_WING, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false,
+      });
+      const wing = new THREE.Mesh(dragonflyWingGeo, wm);
+      wing.position.set(side * 0.01, 0.01, zOff);
+      wing.rotation.z = side * (Math.PI / 3); // ±60° attach/spread, baked once
+      wing.userData.side = side;
+      wings.push(wing);
+      wingMats.push(wm);
+      g.add(wing);
+    });
+    g.userData.wings = wings;
+    g.userData.mats = wingMats; // [body, wing, wing, wing, wing]
+    return g;
+  }
+  const dragonflyA = buildDragonfly();
+  const dragonflyB = buildDragonfly();
+  group.add(dragonflyA, dragonflyB);
+  const dragonflyState = [
+    { g: dragonflyA, u: 0.3, dir: 1, hoverT: 6, vis: 0 },
+    { g: dragonflyB, u: 0.55, dir: -1, hoverT: 2.5, vis: 0 },
   ];
 
   // the waterfall: island mode pours off the cliff edge, down past the
@@ -470,6 +538,15 @@ export function buildWater(island, mode = "island") {
     // reducedMotion; fades out entirely as the river freezes.
     foamMat.opacity = (reducedMotion ? 0.4 : 0.4 + Math.sin(t2 * 0.9) * 0.12) * (1 - frozen);
 
+    // night sparkle glints: twinkle on the river + pool, frozen out in winter;
+    // reducedMotion holds a static level with no drift.
+    if (reducedMotion) {
+      sparkleMat.opacity = ws.night * 0.5 * (1 - frozen);
+    } else {
+      sparkles.position.x = Math.sin(t2 * 0.15) * 0.05;
+      sparkleMat.opacity = ws.night * (0.35 + 0.35 * Math.sin(t2 * 2.3)) * (1 - frozen);
+    }
+
     // drifting current streaks: hidden once mostly frozen or under reducedMotion
     streaks.visible = frozen < 0.5 && !reducedMotion;
     if (streaks.visible) {
@@ -515,6 +592,35 @@ export function buildWater(island, mode = "island") {
       k.g.position.set(POOL.x + Math.cos(k.angle) * k.radius, 0.075, POOL.z + Math.sin(k.angle) * k.radius);
       k.g.rotation.y = -k.angle; // tangent to the circle
       k.g.userData.tail.rotation.y = Math.sin(t2 * 6) * 0.5; // tail sway
+    });
+
+    // summer dragonflies: fade in/out on a ~1s ramp toward a season/night/
+    // reducedMotion gate so they never pop; darting flight along the river
+    // with occasional hovers, wings flapping fast enough to shimmer at 60fps.
+    const dragonflyTarget = ws.season === "summer" && ws.night < 0.3 && !reducedMotion ? 1 : 0;
+    const { points: dfPoints, normals: dfNormals } = riverSurf.frames;
+    dragonflyState.forEach((d, i) => {
+      d.vis = THREE.MathUtils.clamp(d.vis + (dragonflyTarget - d.vis) * dt, 0, 1);
+      d.g.visible = d.vis > 0.003;
+      d.g.userData.mats.forEach((m, mi) => { m.opacity = (mi === 0 ? 1 : 0.45) * d.vis; });
+      if (!d.g.visible) return;
+
+      d.hoverT -= dt;
+      const hovering = d.hoverT <= 0;
+      if (d.hoverT <= -1.2) d.hoverT = 6 + i * 1.4; // stagger so both never hover together
+      if (!hovering) {
+        d.u += d.dir * 0.72 * dt; // ~0.012/frame @60fps
+        if (d.u > 0.65) { d.u = 0.65; d.dir = -1; }
+        if (d.u < 0.25) { d.u = 0.25; d.dir = 1; }
+      }
+
+      const idx = Math.min(FRAME_N - 1, Math.max(0, Math.floor(d.u * FRAME_N)));
+      const nextIdx = d.dir > 0 ? Math.min(FRAME_N - 1, idx + 1) : Math.max(0, idx - 1);
+      const p = dfPoints[idx], q = dfPoints[nextIdx], n = dfNormals[idx];
+      const hoverDrift = Math.sin(t2 * 1.7 + i * 3) * 0.06; // subtle lateral wander while stalled
+      d.g.position.set(p.x + n.x * hoverDrift, 0.28 + Math.sin(t2 * 3 + i) * 0.04, p.z + n.z * hoverDrift);
+      if (nextIdx !== idx) d.g.rotation.y = Math.atan2(q.x - p.x, q.z - p.z);
+      d.g.userData.wings.forEach((w) => { w.rotation.x = Math.sin(t2 * 40 + w.userData.side) * 0.5; });
     });
   }
 
