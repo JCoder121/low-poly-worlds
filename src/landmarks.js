@@ -1,7 +1,7 @@
 // The quiet places: a small temple with its lantern, a raked sand garden,
 // and the bridge that carries the road over the river.
 import * as THREE from "three";
-import { COLORS, mat, rock } from "./world.js";
+import { COLORS, mat, rock, jitterGeometry } from "./world.js";
 
 const SAND_LIGHT = 0xefe6cf;
 const ROOF = 0x2a3247;
@@ -11,28 +11,32 @@ function temple() {
   const g = new THREE.Group();
   const base = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.14, 1.2), mat(COLORS.stone));
   base.position.y = 0.07;
-  const hall = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.6, 0.85), mat(PLASTER));
-  hall.position.y = 0.44;
-  const door = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.4, 0.02), mat(COLORS.ink));
-  door.position.set(0, 0.36, 0.435);
+  const hall = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.72, 0.85), mat(COLORS.vermillion));
+  hall.position.y = 0.50;
+  const door = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.48, 0.02), mat(COLORS.ink));
+  door.position.set(0, 0.42, 0.435);
   // four vermillion pillars at the corners
   for (const [x, z] of [[-0.5, 0.38], [0.5, 0.38], [-0.5, -0.38], [0.5, -0.38]]) {
-    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 0.62, 6), mat(COLORS.vermillion));
-    p.position.set(x, 0.45, z);
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 0.74, 6), mat(COLORS.vermillion));
+    p.position.set(x, 0.51, z);
     p.castShadow = true;
     g.add(p);
   }
-  // two stacked pyramid roof slabs with overhang (4-sided cones read as hips)
+  // three stacked pyramid roof tiers with overhang (4-sided cones read as hips)
   const roofLow = new THREE.Mesh(new THREE.ConeGeometry(1.15, 0.3, 4), mat(ROOF));
   roofLow.rotation.y = Math.PI / 4;
   roofLow.scale.z = 0.82;
-  roofLow.position.y = 0.86;
-  const roofHigh = new THREE.Mesh(new THREE.ConeGeometry(0.72, 0.24, 4), mat(ROOF));
+  roofLow.position.y = 0.98;
+  const roofMid = new THREE.Mesh(new THREE.ConeGeometry(0.9, 0.26, 4), mat(ROOF));
+  roofMid.rotation.y = Math.PI / 4;
+  roofMid.scale.z = 0.82;
+  roofMid.position.y = 1.22;
+  const roofHigh = new THREE.Mesh(new THREE.ConeGeometry(0.6, 0.22, 4), mat(ROOF));
   roofHigh.rotation.y = Math.PI / 4;
   roofHigh.scale.z = 0.82;
-  roofHigh.position.y = 1.1;
-  for (const m of [base, hall, roofLow, roofHigh]) { m.castShadow = m.receiveShadow = true; }
-  g.add(base, hall, door, roofLow, roofHigh);
+  roofHigh.position.y = 1.46;
+  for (const m of [base, hall, roofLow, roofMid, roofHigh]) { m.castShadow = m.receiveShadow = true; }
+  g.add(base, hall, door, roofLow, roofMid, roofHigh);
   return g;
 }
 
@@ -63,14 +67,24 @@ function stoneLantern() {
 
 function zenGarden() {
   const g = new THREE.Group();
-  const slab = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.07, 1.15), mat(SAND_LIGHT));
+  const slab = new THREE.Mesh(
+    jitterGeometry(new THREE.BoxGeometry(1.7, 0.07, 1.15, 12, 1, 8).toNonIndexed(), 0.01),
+    mat(SAND_LIGHT)
+  );
   slab.position.y = 0.035;
   slab.receiveShadow = true;
   g.add(slab);
-  for (let i = 0; i < 6; i++) { // raked grooves: thin ridges along the long axis
-    const ridge = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.015, 0.02), mat(0xe2d5b8));
-    ridge.position.set(0, 0.075, -0.42 + i * 0.17);
+  for (let i = 0; i < 10; i++) { // raked grooves: thin ridges along the long axis
+    const ridge = new THREE.Mesh(new THREE.BoxGeometry(1.58, 0.012, 0.014), mat(0xe2d5b8));
+    ridge.position.set(0, 0.075, -0.4725 + i * 0.105);
     g.add(ridge);
+  }
+  // concentric raked arcs around the biggest rock
+  for (const radius of [0.2, 0.3]) {
+    const arc = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.006, 4, 12, Math.PI * 1.5), mat(0xe2d5b8));
+    arc.rotation.x = -Math.PI / 2;
+    arc.position.set(-0.45, 0.075, 0.12);
+    g.add(arc);
   }
   const placements = [[-0.45, 0.12, 0.14], [0.35, -0.25, 0.1], [0.55, 0.3, 0.07]];
   for (const [x, z, s] of placements) {
@@ -86,13 +100,13 @@ function bridge() {
   // gently arched deck: 5 planks fanning over the water, road-flush
   for (let i = 0; i < 5; i++) {
     const k = i / 4 - 0.5; // -0.5..0.5 across the span
-    const plank = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.045, 0.95), mat(COLORS.trunk));
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.045, 1.15), mat(COLORS.trunk));
     plank.position.set(k * 1.35, 0.1 + Math.cos(k * Math.PI) * 0.09, 0);
     plank.rotation.z = -Math.sin(k * Math.PI) * 0.16;
     plank.castShadow = plank.receiveShadow = true;
     g.add(plank);
   }
-  for (const side of [-0.42, 0.42]) { // low rails
+  for (const side of [-0.52, 0.52]) { // low rails
     const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.5, 5), mat(COLORS.trunk));
     rail.rotation.z = Math.PI / 2;
     rail.position.set(0, 0.34, side);
