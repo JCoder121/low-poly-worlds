@@ -57,7 +57,7 @@ pool to `[zazen, tea, reading]`. Winter excludes `misogi`.
 ## v3 water
 The river/pool/waterfall (`src/water.js`) is the diorama's standout artifact — a laned, flat-shaded faceted surface with sky-mirror tinting, foam, koi, night sparkles, and summer dragonflies. Verify with `?time= ?season= ?speed=` on both pages, same as everything else.
 
-**Sky-mirror tint** — water color = `WATER (0xa9cbd4)` lerped 55% toward `ws.lighting.bg` (each frame), then lerped toward `ICE (0xd8e4ea)` by `frozen`. So the pool/river should visibly warm/cool with the sky: rose-pale at `?time=0.0` (dawn), gold at the dusk default, ink-dark at `?time=0.8` (night). Screenshot each `&speed=0` and eyeball the tint against the sky gradient — they should read as the same light.
+**Sky-mirror tint** — water color = `WATER (0x93bfd0)` lerped 30% toward `ws.lighting.bg`, scaled by 0.90 (pulled slightly dark), then lerped toward `ICE (0xd8e4ea)` by `frozen`. So the pool/river should visibly warm/cool with the sky: rose-pale at `?time=0.0` (dawn), gold at the dusk default, ink-dark at `?time=0.8` (night). Screenshot each `&speed=0` and eyeball the tint against the sky gradient — they should read as the same light.
 
 **Gating conditions** (check by screenshot, not just code):
 | feature | visible when | hidden/altered when |

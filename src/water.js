@@ -259,7 +259,7 @@ export function buildWater(island, mode = "island") {
       const idx = Math.floor(Math.random() * n);
       const p = points[idx], nrm = normals[idx];
       const off = (Math.random() * 2 - 1) * 0.2;
-      positions.push(p.x + nrm.x * off, 0.06, p.z + nrm.z * off);
+      positions.push(p.x + nrm.x * off, 0.07, p.z + nrm.z * off);
     }
     for (let i = 0; i < 6; i++) {
       const ang = Math.random() * Math.PI * 2;
@@ -271,7 +271,7 @@ export function buildWater(island, mode = "island") {
     return geo;
   }
   const sparkleMat = new THREE.PointsMaterial({
-    color: 0xfdfaf2, size: 2.5, transparent: true, opacity: 0, depthWrite: false,
+    color: FOAM_LINE, size: 2.5, transparent: true, opacity: 0, depthWrite: false,
     blending: THREE.AdditiveBlending, sizeAttenuation: false, fog: false,
   });
   const sparkles = new THREE.Points(buildSparkles(riverSurf.frames), sparkleMat);
@@ -519,6 +519,12 @@ export function buildWater(island, mode = "island") {
 
     chunks.visible = frozen < 0.5;
     if (chunks.visible) {
+      // reset shared `dummy` before reuse: the streak loop below sets its own
+      // rotation/scale each iteration, but leaves them non-identity between
+      // frames — without this reset, chunks (position-only) would inherit
+      // last frame's streak rotation/scale and pulse/yaw incorrectly.
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(1, 1, 1);
       chunkState.forEach((c, i) => {
         c.y -= c.speed * dt;
         if (c.y < CHUNK_BOTTOM) c.y = CHUNK_TOP;
@@ -547,7 +553,9 @@ export function buildWater(island, mode = "island") {
       sparkleMat.opacity = ws.night * (0.35 + 0.35 * Math.sin(t2 * 2.3)) * (1 - frozen);
     }
 
-    // drifting current streaks: hidden once mostly frozen or under reducedMotion
+    // drifting current streaks: fade out approaching freeze (no single-frame
+    // pop), then hidden once mostly frozen or under reducedMotion
+    streakMat.opacity = 0.65 * Math.max(0, 1 - frozen * 2);
     streaks.visible = frozen < 0.5 && !reducedMotion;
     if (streaks.visible) {
       const { points, normals } = riverSurf.frames;

@@ -91,7 +91,7 @@ palette across the winter freeze.
 Around that surface: bank foam lines and ten drifting current streaks trace
 the river's flow; a widened pool holds three cycling ripple rings and two
 koi circling at the cascade's foot; the waterfall itself is three layered,
-gently wiggling ribbons with a lip fringe and splash rings, plus a
+gently wiggling ribbons with a lip fringe and splash ring, plus a
 two-strip cascade at the step. After dark, 22 sparkle glints wink across the
 water's surface; on summer days, two dragonflies drift and hover over the
 river, fading in and out rather than popping. Winter freezes all of it at
