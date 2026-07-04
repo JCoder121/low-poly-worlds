@@ -204,6 +204,53 @@ export function buildWater(island, mode = "island") {
   pool.position.set(-3.9, 0.03, 4.15);
   group.add(step, cascade, pool);
 
+  // ripple rings: 3 cycling outward from the cascade's impact point. Pool top
+  // sits at y 0.03+0.03=0.06 — the brief's y 0.045 sits inside the disc, so
+  // rings are raised to 0.075 (matches the koi plane below) to clear it.
+  const RING_ORIGIN = new THREE.Vector3(-3.9, 0.075, 3.85);
+  const ringGeo = new THREE.RingGeometry(0.9, 1.0, 20);
+  const rings = [0, 1, 2].map(() => {
+    const m = new THREE.Mesh(
+      ringGeo,
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, side: THREE.DoubleSide })
+    );
+    m.rotation.x = -Math.PI / 2; // lie flat, facing up toward the iso camera
+    m.position.copy(RING_ORIGIN);
+    group.add(m);
+    return m;
+  });
+
+  // koi: two small silhouettes circling the pool, flattened so they read as
+  // at-the-surface from the iso view. Nose-forward cone body + patch + a
+  // tail cone that sways independently.
+  function koi(bodyColor, patchColor) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.16, 4), mat(bodyColor));
+    body.rotation.x = Math.PI / 2; // nose forward along +z
+    body.scale.y = 0.45; // flattened for the top-down view
+    const patch = new THREE.Mesh(new THREE.SphereGeometry(0.03, 4, 3), mat(patchColor));
+    patch.position.set(0.012, 0.02, 0.02);
+    patch.scale.y = 0.4;
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.07, 3), mat(bodyColor));
+    tail.rotation.x = -Math.PI / 2;
+    tail.position.z = -0.1;
+    g.add(body, patch, tail);
+    g.userData.tail = tail;
+    return g;
+  }
+  // pool center — matches pool.position above (x, z); Task 2 left it here.
+  const POOL = new THREE.Vector3(-3.9, 0, 4.15);
+  const koiA = koi(0xd96f38, 0xfdfaf2);
+  const koiB = koi(0xfdfaf2, 0xd96f38);
+  group.add(koiA, koiB);
+  // orbit radii (0.32/0.45) + body half-length (~0.13) stay well inside the
+  // 0.85 pool rim; started at opposite angles and staggered pause phases so
+  // the two never read as synced.
+  const koiState = [
+    { g: koiA, angle: 0, radius: 0.32, speed: 0.5, pauseTimer: 1.0 },
+    { g: koiB, angle: 2.1, radius: 0.45, speed: 0.38, pauseTimer: -3.0 },
+  ];
+
   // the waterfall: island mode pours off the cliff edge, down past the
   // island's foot; expanse mode has no cliff at all (just rolling ground), so
   // the river instead ends in a sunken, misty basin at ground level.
@@ -338,6 +385,33 @@ export function buildWater(island, mode = "island") {
       });
       streaks.instanceMatrix.needsUpdate = true;
     }
+
+    // ripple rings: cycle outward from the cascade impact point; hidden
+    // under reducedMotion or once the pool is fully frozen
+    const ringsVisible = !reducedMotion && frozen < 1;
+    rings.forEach((r, i) => {
+      r.visible = ringsVisible;
+      if (!ringsVisible) return;
+      const phase = (t2 * 0.45 + i / 3) % 1;
+      r.scale.setScalar(0.12 + phase * 0.55);
+      r.material.opacity = 0.38 * (1 - phase) * (1 - frozen);
+    });
+
+    // koi: circular swim with occasional pauses; hidden once mostly frozen,
+    // slowed (not hidden) under reducedMotion
+    const koiVisible = frozen < 0.5;
+    koiState.forEach((k, i) => {
+      k.g.visible = koiVisible;
+      if (!koiVisible) return;
+      k.pauseTimer -= dt;
+      const moving = k.pauseTimer < 0 || k.pauseTimer > 1.5; // pause = 1.5s window every ~8-14s
+      if (k.pauseTimer < -8 - i * 6) k.pauseTimer = 1.5;
+      const sp = k.speed * (moving ? 1 : 0.05) * (reducedMotion ? 0.15 : 1);
+      k.angle += sp * dt;
+      k.g.position.set(POOL.x + Math.cos(k.angle) * k.radius, 0.075, POOL.z + Math.sin(k.angle) * k.radius);
+      k.g.rotation.y = -k.angle; // tangent to the circle
+      k.g.userData.tail.rotation.y = Math.sin(t2 * 6) * 0.5; // tail sway
+    });
   }
 
   return { spots, update };
