@@ -113,13 +113,13 @@ export class Travelers {
     bubble.addEventListener("mouseenter", () => (traveler.paused = true));
     bubble.addEventListener("mouseleave", () => {
       traveler.paused = false;
-      traveler.bubbleTimer = Math.max(traveler.bubbleTimer, 6); // linger a bit after hover
+      traveler.bubbleTimer = Math.max(traveler.bubbleTimer, 10); // linger a bit after hover
     });
     a.addEventListener("focus", () => (traveler.paused = true));
     a.addEventListener("blur", () => (traveler.paused = false));
     this.bubbleLayer.appendChild(bubble);
     traveler.bubble = bubble;
-    traveler.bubbleTimer = 8;
+    traveler.bubbleTimer = 14;
   }
 
   positionBubble(traveler) {
@@ -138,7 +138,7 @@ export class Travelers {
     if (!b) return;
     traveler.bubble = null;
     b.classList.add("leaving");
-    setTimeout(() => b.remove(), 400);
+    setTimeout(() => b.remove(), 750);
   }
 
   update(dt, t) {
