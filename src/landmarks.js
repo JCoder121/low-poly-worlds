@@ -134,7 +134,7 @@ function bridge() {
   return g;
 }
 
-export function buildLandmarks(island) {
+export function buildLandmarks(island, mode = "island") {
   const group = new THREE.Group();
   island.add(group);
 
@@ -186,33 +186,63 @@ export function buildLandmarks(island) {
   pool.position.set(-3.9, 0.03, 4.05);
   group.add(step, cascade, pool);
 
-  // the waterfall: pours off the cliff edge, down past the island's foot.
-  // At the brief's literal coordinates (-3.85,-2.2,4.75) this column sits at
-  // radius ~6.1 from the island's center — inside the mid cliff-tier's
-  // footprint (radius ~8.3, up to ~9 with jitter) — so it rendered fully
-  // hidden behind solid ground. Rather than move it sideways (which pulled it
-  // away from the pool into visibly empty air), it's pulled toward the
-  // camera along the camera's own view axis: since that axis is orthogonal to
-  // the screen plane in this orthographic view, translating along it leaves
-  // every pixel of the fall's silhouette exactly where the brief placed it,
-  // while lifting it in front of the cliff mesh instead of inside it.
-  const CAM_FORWARD = new THREE.Vector3(-13, -10.9, -13).normalize();
-  const FALL_SHIFT = 7; // world units toward the camera; clears the cliff occlusion
-  const fallOrigin = new THREE.Vector3(-3.85, -2.2, 4.75);
-  const fallDelta = CAM_FORWARD.clone().multiplyScalar(-FALL_SHIFT);
-  const fallPos = fallOrigin.clone().add(fallDelta);
+  // the waterfall: island mode pours off the cliff edge, down past the
+  // island's foot; expanse mode has no cliff at all (just rolling ground), so
+  // the river instead ends in a sunken, misty basin at ground level.
+  let fallOrigin, fallDelta, CHUNK_TOP, CHUNK_BOTTOM, mistBaseY, fall;
 
-  const fall = new THREE.Mesh(new THREE.BoxGeometry(0.55, 4.6, 0.14), mat(FOAM, { transparent: true, opacity: 0.8 }));
-  fall.position.copy(fallPos);
-  group.add(fall);
+  if (mode === "expanse") {
+    // no cliff to occlude the fall here, so no camera-axis shift is needed —
+    // the basin sits right at the river's literal end point.
+    fallOrigin = new THREE.Vector3(-3.85, -0.35, 4.75);
+    fallDelta = new THREE.Vector3(0, 0, 0);
+
+    const basin = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.1, 1.0, 0.12, 12),
+      mat(0x4a5a4e)
+    );
+    basin.position.set(-3.9, -0.18, 5.2);
+    basin.receiveShadow = true;
+    group.add(basin);
+
+    fall = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.9, 0.14), mat(FOAM, { transparent: true, opacity: 0.8 }));
+    fall.position.set(fallOrigin.x, -0.35, fallOrigin.z);
+    group.add(fall);
+
+    CHUNK_TOP = 0.1;
+    CHUNK_BOTTOM = -0.7;
+    mistBaseY = -0.1;
+  } else {
+    // At the brief's literal coordinates (-3.85,-2.2,4.75) this column sits at
+    // radius ~6.1 from the island's center — inside the mid cliff-tier's
+    // footprint (radius ~8.3, up to ~9 with jitter) — so it rendered fully
+    // hidden behind solid ground. Rather than move it sideways (which pulled it
+    // away from the pool into visibly empty air), it's pulled toward the
+    // camera along the camera's own view axis: since that axis is orthogonal to
+    // the screen plane in this orthographic view, translating along it leaves
+    // every pixel of the fall's silhouette exactly where the brief placed it,
+    // while lifting it in front of the cliff mesh instead of inside it.
+    const CAM_FORWARD = new THREE.Vector3(-13, -10.9, -13).normalize();
+    const FALL_SHIFT = 7; // world units toward the camera; clears the cliff occlusion
+    fallOrigin = new THREE.Vector3(-3.85, -2.2, 4.75);
+    fallDelta = CAM_FORWARD.clone().multiplyScalar(-FALL_SHIFT);
+    const fallPos = fallOrigin.clone().add(fallDelta);
+
+    fall = new THREE.Mesh(new THREE.BoxGeometry(0.55, 4.6, 0.14), mat(FOAM, { transparent: true, opacity: 0.8 }));
+    fall.position.copy(fallPos);
+    group.add(fall);
+
+    CHUNK_TOP = 0.1 + fallDelta.y;
+    CHUNK_BOTTOM = -4.5 + fallDelta.y;
+    mistBaseY = -4.3 + fallDelta.y;
+  }
+
   // falling water chunks (instanced) + mist puffs at the base — offsets are
   // relative to fallOrigin, then shifted by the same fallDelta so they stay
   // visually locked to the fall column.
   const chunkGeo = new THREE.BoxGeometry(0.1, 0.22, 0.08);
   const chunks = new THREE.InstancedMesh(chunkGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.75 }), 14);
   group.add(chunks);
-  const CHUNK_TOP = 0.1 + fallDelta.y;
-  const CHUNK_BOTTOM = -4.5 + fallDelta.y;
   const chunkState = Array.from({ length: 14 }, () => ({
     y: CHUNK_TOP + Math.random() * (CHUNK_BOTTOM - CHUNK_TOP),
     x: fallOrigin.x + fallDelta.x + Math.random() * 0.4,
@@ -226,7 +256,7 @@ export function buildLandmarks(island) {
     );
     m.position.set(
       fallOrigin.x + fallDelta.x - 0.25 + i * 0.25,
-      -4.3 + fallDelta.y,
+      mistBaseY,
       fallOrigin.z + fallDelta.z + (i % 2) * 0.2
     );
     mists.push(m);
@@ -262,7 +292,7 @@ export function buildLandmarks(island) {
     }
     mists.forEach((m, i) => {
       m.visible = frozen < 0.5;
-      m.position.y = -4.3 + fallDelta.y + Math.sin(t2 * 0.9 + i * 2.1) * 0.12;
+      m.position.y = mistBaseY + Math.sin(t2 * 0.9 + i * 2.1) * 0.12;
       m.material.opacity = 0.16 + Math.sin(t2 * 1.3 + i) * 0.05;
     });
     const l = lantern.userData;

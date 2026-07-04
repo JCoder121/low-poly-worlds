@@ -283,15 +283,20 @@ export class Fire {
 
 // ---------- path ----------
 
-export function makePathCurve() {
-  return new THREE.CatmullRomCurve3([
+export function makePathCurve(mode = "island") {
+  const points = [
     new THREE.Vector3(-7.6, 0, 1.6),
     new THREE.Vector3(-4.2, 0, 2.6),
     new THREE.Vector3(-0.8, 0, 3.0),
     new THREE.Vector3(2.8, 0, 2.7),
     new THREE.Vector3(5.4, 0, 1.9),
     new THREE.Vector3(7.6, 0, 1.0),
-  ]);
+  ];
+  if (mode === "expanse") {
+    points.unshift(new THREE.Vector3(-16, 0, 2.2));
+    points.push(new THREE.Vector3(16, 0, 0.4));
+  }
+  return new THREE.CatmullRomCurve3(points);
 }
 
 function pathRibbon(curve) {
@@ -330,37 +335,69 @@ function pathRibbon(curve) {
 
 // ---------- assembly ----------
 
-export function buildWorld(scene) {
+export function buildWorld(scene, mode = "island") {
   const island = new THREE.Group();
 
-  const top = islandLayer(7.4, 0.14, 1.1, COLORS.moss, COLORS.cliff);
-  top.position.y = -1.1;
-  const mid = islandLayer(8.3, 0.18, 1.5, COLORS.cliff, COLORS.cliffDark);
-  mid.position.y = -2.7;
-  const foot = islandLayer(6.2, 0.3, 1.0, COLORS.cliffDark, COLORS.cliffDark);
-  foot.position.set(0.5, -3.8, -0.4);
-  island.add(top, mid, foot);
+  let topMaterial; // ground/top-face material registered under tint key "top"
 
-  // soft contact shadow on the paper, far below the floating island
-  const shadowCanvas = document.createElement("canvas");
-  shadowCanvas.width = shadowCanvas.height = 256;
-  const ctx = shadowCanvas.getContext("2d");
-  const grad = ctx.createRadialGradient(128, 128, 20, 128, 128, 126);
-  grad.addColorStop(0, "rgba(28,35,51,0.16)");
-  grad.addColorStop(1, "rgba(28,35,51,0)");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 256, 256);
-  const shadow = new THREE.Mesh(
-    new THREE.PlaneGeometry(19, 15),
-    new THREE.MeshBasicMaterial({
-      map: new THREE.CanvasTexture(shadowCanvas),
-      transparent: true,
-      depthWrite: false,
-    })
-  );
-  shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = -5.6;
-  island.add(shadow);
+  if (mode === "island") {
+    const top = islandLayer(7.4, 0.14, 1.1, COLORS.moss, COLORS.cliff);
+    top.position.y = -1.1;
+    const mid = islandLayer(8.3, 0.18, 1.5, COLORS.cliff, COLORS.cliffDark);
+    mid.position.y = -2.7;
+    const foot = islandLayer(6.2, 0.3, 1.0, COLORS.cliffDark, COLORS.cliffDark);
+    foot.position.set(0.5, -3.8, -0.4);
+    island.add(top, mid, foot);
+    topMaterial = top.material[0];
+
+    // soft contact shadow on the paper, far below the floating island
+    const shadowCanvas = document.createElement("canvas");
+    shadowCanvas.width = shadowCanvas.height = 256;
+    const ctx = shadowCanvas.getContext("2d");
+    const grad = ctx.createRadialGradient(128, 128, 20, 128, 128, 126);
+    grad.addColorStop(0, "rgba(28,35,51,0.16)");
+    grad.addColorStop(1, "rgba(28,35,51,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 256, 256);
+    const shadow = new THREE.Mesh(
+      new THREE.PlaneGeometry(19, 15),
+      new THREE.MeshBasicMaterial({
+        map: new THREE.CanvasTexture(shadowCanvas),
+        transparent: true,
+        depthWrite: false,
+      })
+    );
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = -5.6;
+    island.add(shadow);
+  } else {
+    // expanse: one big rolling ground plane instead of the floating island tiers
+    const groundGeo = new THREE.PlaneGeometry(64, 48, 26, 20);
+    groundGeo.rotateX(-Math.PI / 2);
+    // gentle rolling facets, flat near the clearing
+    const pos = groundGeo.attributes.position;
+    // sunken basin the river/waterfall ends in — carved into the ground so the
+    // basin/mist/fall (added later in landmarks.js) read as an actual hollow
+    // rather than sitting invisibly under a flat plane.
+    const BASIN_X = -3.9, BASIN_Z = 5.2, BASIN_R = 2.4, BASIN_DEPTH = 0.5;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), z = pos.getZ(i);
+      const d = Math.hypot(x, z);
+      const roll = d > 8 ? (d - 8) * 0.04 : 0;
+      let y = Math.sin(x * 0.45) * Math.cos(z * 0.38) * roll + (Math.random() - 0.5) * Math.min(0.18, roll);
+      const db = Math.hypot(x - BASIN_X, z - BASIN_Z);
+      if (db < BASIN_R) {
+        const bt = 1 - db / BASIN_R;
+        y -= BASIN_DEPTH * bt * bt;
+      }
+      pos.setY(i, y);
+    }
+    groundGeo.computeVertexNormals();
+    const ground = new THREE.Mesh(groundGeo.toNonIndexed(), mat(COLORS.moss));
+    ground.receiveShadow = true;
+    island.add(ground);
+    topMaterial = ground.material;
+  }
 
   // back hills, like the atlas ridge
   const h1 = domeHill(2.6, COLORS.mossLight);
@@ -369,12 +406,34 @@ export function buildWorld(scene) {
   h2.position.set(1.4, 0, -5.2);
   island.add(h1, h2);
 
+  const extraHillTargets = [];
+  if (mode === "expanse") {
+    // extra dome hills scattered at radius 9-15 so the distance isn't empty
+    const extraHillSpots = [
+      [-14, -3, 2.2, COLORS.mossLight, "hl"],
+      [13, -6, 2.0, COLORS.mossDark, "hd"],
+    ];
+    for (const [x, z, r, color, key] of extraHillSpots) {
+      const h = domeHill(r, color);
+      h.position.set(x, 0, z);
+      island.add(h);
+      extraHillTargets.push({ material: h.material, key, base: color, lighten: false });
+    }
+  }
+
   // pines scattered on and behind the hills
   const pinePlacements = [
     [-5.6, -2.6, 1.1], [-2.2, -5.4, 1.35], [-0.6, -4.6, 0.9],
     [3.2, -5.0, 1.2], [6.3, -2.3, 0.95], [6.2, -1.4, 0.8],
     [-6.4, -0.6, 0.9],
   ];
+  if (mode === "expanse") {
+    // 6 extra pines scattered at radius 9-15 so the expanse isn't empty
+    pinePlacements.push(
+      [-11, -7, 1.1], [9, -8, 1.2], [12, 3, 1.0],
+      [-12, 4, 1.15], [8, 7, 0.95], [-9, 8, 1.05]
+    );
+  }
   const pineTargets = [];
   for (const [x, z, h] of pinePlacements) {
     const coneColor = Math.random() < 0.5 ? COLORS.mossDark : COLORS.moss;
@@ -396,7 +455,7 @@ export function buildWorld(scene) {
   tree.position.set(-2.3, 0, -1.2);
   island.add(tree);
 
-  const curve = makePathCurve();
+  const curve = makePathCurve(mode);
   island.add(pathRibbon(curve));
 
   const gate = torii();
@@ -414,9 +473,10 @@ export function buildWorld(scene) {
   const cherryBlobs = tree.userData.blobs;
   const snowCaps = tree.userData.snowCaps;
   const tintTargets = [
-    { material: top.material[0], key: "top", base: COLORS.moss, lighten: false },
+    { material: topMaterial, key: "top", base: COLORS.moss, lighten: false },
     { material: h1.material, key: "hl", base: COLORS.mossLight, lighten: false },
     { material: h2.material, key: "hd", base: COLORS.mossDark, lighten: false },
+    ...extraHillTargets,
     ...pineTargets,
   ];
   cherryBlobs.forEach((blob, i) => {

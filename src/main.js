@@ -7,6 +7,7 @@ import { Travelers } from "./travelers.js";
 import { Cycle } from "./cycle.js";
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const mode = document.body.dataset.mode ?? "island";
 
 // ---------- renderer & scene ----------
 
@@ -19,7 +20,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.setClearColor(COLORS.paper);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(COLORS.paper, 20, 38);
+scene.fog = new THREE.Fog(COLORS.paper, mode === "expanse" ? 16 : 20, mode === "expanse" ? 30 : 38);
 
 // ---------- golden-hour light ----------
 
@@ -50,8 +51,14 @@ const FRUSTUM = 11;
 const camera = new THREE.OrthographicCamera();
 function frameCamera() {
   const aspect = window.innerWidth / window.innerHeight;
-  // on narrow screens, widen the frustum so the whole island stays in frame
-  const height = Math.max(FRUSTUM, 16.5 / aspect);
+  // on narrow screens, widen the frustum so the whole island stays in frame.
+  // Expanse has no island to fit — its ground is a full-bleed plane — and
+  // growing the frustum height here would push the bottom rows of very
+  // narrow/tall viewports past the near clip plane (the ray for those rows
+  // dips below y=0 before it even reaches the ground), showing background
+  // instead of terrain. So expanse keeps a fixed height and just narrows
+  // horizontally on tall screens, same as the default (non-narrow) case.
+  const height = mode === "expanse" ? FRUSTUM : Math.max(FRUSTUM, 16.5 / aspect);
   camera.left = (-height * aspect) / 2;
   camera.right = (height * aspect) / 2;
   camera.top = height / 2;
@@ -76,9 +83,9 @@ if (!reducedMotion) {
 
 // ---------- world & actors ----------
 
-const world = buildWorld(scene);
+const world = buildWorld(scene, mode);
 const weather = new Weather(scene, world.treePosition, reducedMotion);
-const landmarks = buildLandmarks(world.island);
+const landmarks = buildLandmarks(world.island, mode);
 
 const cycle = new Cycle({ reducedMotion });
 cycle.addStars(scene, camera); // camera framed + positioned above
