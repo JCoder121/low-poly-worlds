@@ -168,6 +168,7 @@ function cherryTree() {
     [0.95, 1.6, 0.3, 0.42],
     [-0.75, 2.1, -0.15, 0.4],
   ];
+  const blobMeshes = [];
   blobs.forEach(([x, y, z, r], i) => {
     const geo = jitterGeometry(
       new THREE.IcosahedronGeometry(r, 0).toNonIndexed(),
@@ -180,70 +181,52 @@ function cherryTree() {
     blob.position.set(x, y, z);
     blob.castShadow = true;
     g.add(blob);
+    blobMeshes.push(blob);
+  });
+  g.userData.blobs = blobMeshes;
+
+  // winter snow caps on trunk/branch tips — hidden (scale 0) until winter
+  const capSpecs = [
+    [0, 1.55, 0, 0.22],
+    [0.62, 1.78, 0.12, 0.16],
+    [-0.1, 1.2, -0.05, 0.12],
+  ];
+  g.userData.snowCaps = capSpecs.map(([x, y, z, r]) => {
+    const geo = jitterGeometry(
+      new THREE.IcosahedronGeometry(r, 0).toNonIndexed(),
+      r * 0.22
+    );
+    const cap = new THREE.Mesh(geo, mat(0xf4f2ec));
+    cap.position.set(x, y, z);
+    cap.scale.setScalar(0.001);
+    cap.castShadow = true;
+    g.add(cap);
+    return cap;
   });
   return g;
 }
 
-// ---------- petals ----------
+// ---------- season palettes ----------
 
-export class Petals {
-  constructor(scene, origin, count) {
-    this.origin = origin;
-    this.count = count;
-    const geo = new THREE.PlaneGeometry(0.075, 0.05);
-    // basic material: petals stay pink from every angle, no dark shaded backsides
-    const material = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
-    this.mesh = new THREE.InstancedMesh(geo, material, count);
-    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    const color = new THREE.Color();
-    for (let i = 0; i < count; i++) {
-      color.setHex(Math.random() < 0.45 ? COLORS.sakuraLight : COLORS.sakura);
-      this.mesh.setColorAt(i, color);
-    }
-    this.dummy = new THREE.Object3D();
-    this.items = Array.from({ length: count }, () => this.spawn(true));
-    scene.add(this.mesh);
-  }
+// Per-season target colors for lerp. Keys map onto tint targets registered in
+// buildWorld: top (island top face), hl/hm/hd (hill light/mid/dark),
+// pine (pine cones), blossom (cherry blobs; null → blobs hide for winter).
+const SEASON_TINTS = {
+  spring: { top: 0x8ca873, hl: 0xa9bc8b, hm: 0x8ca873, hd: 0x6e8b5e, pine: 0x6e8b5e, blossom: 0xf2b8c6 },
+  summer: { top: 0x7da065, hl: 0x9cb47e, hm: 0x7da065, hd: 0x5f7d52, pine: 0x5f7d52, blossom: 0x8fb277 },
+  autumn: { top: 0xa89a5e, hl: 0xbcae76, hm: 0xa89a5e, hd: 0x8a7d4d, pine: 0x6e8b5e, blossom: 0xd98e4a },
+  winter: { top: 0xe9e7dd, hl: 0xdfe3da, hm: 0xd4d8cc, hd: 0xc2c8bb, pine: 0x5c7355, blossom: null },
+};
 
-  spawn(anywhere = false) {
-    return {
-      x: this.origin.x + (Math.random() - 0.5) * 3.2,
-      y: anywhere ? Math.random() * 2.4 : 1.6 + Math.random() * 1.0,
-      z: this.origin.z + (Math.random() - 0.5) * 2.6,
-      fall: 0.11 + Math.random() * 0.09,
-      swayPhase: Math.random() * Math.PI * 2,
-      swayAmp: 0.25 + Math.random() * 0.3,
-      drift: 0.05 + Math.random() * 0.12, // gentle wind, blows +x
-      spin: (Math.random() - 0.5) * 1.1,
-      rest: 0, // seconds spent on the ground
-      restFor: 2.5 + Math.random() * 3,
-    };
+// Resolve a target color for a tint entry, applying the light-blob lighten offset.
+function tintColor(out, hex, lighten) {
+  out.setHex(hex);
+  if (lighten) {
+    out.r = Math.min(1, out.r + 0.04);
+    out.g = Math.min(1, out.g + 0.04);
+    out.b = Math.min(1, out.b + 0.04);
   }
-
-  update(dt, t) {
-    this.items.forEach((p, i) => {
-      if (p.y <= 0.02) {
-        p.rest += dt;
-        if (p.rest > p.restFor) this.items[i] = p = this.spawn();
-      } else {
-        p.y -= p.fall * dt;
-        p.x += (Math.sin(t * 0.8 + p.swayPhase) * p.swayAmp * 0.4 + p.drift) * dt;
-        p.z += Math.cos(t * 0.6 + p.swayPhase) * 0.1 * dt;
-      }
-      const settled = p.y <= 0.02;
-      const scale = settled ? Math.max(0, 1 - Math.max(0, p.rest - p.restFor + 1)) : 1;
-      this.dummy.position.set(p.x, Math.max(p.y, 0.02), p.z);
-      this.dummy.rotation.set(
-        settled ? -Math.PI / 2 : Math.sin(t * p.spin + p.swayPhase) * 1.2,
-        settled ? p.swayPhase : t * p.spin,
-        settled ? 0 : p.swayPhase
-      );
-      this.dummy.scale.setScalar(scale);
-      this.dummy.updateMatrix();
-      this.mesh.setMatrixAt(i, this.dummy.matrix);
-    });
-    this.mesh.instanceMatrix.needsUpdate = true;
-  }
+  return out;
 }
 
 // ---------- fire ----------
@@ -392,11 +375,15 @@ export function buildWorld(scene) {
     [3.2, -5.0, 1.2], [6.3, -2.3, 0.95], [6.2, -1.4, 0.8],
     [-6.4, -0.6, 0.9],
   ];
+  const pineTargets = [];
   for (const [x, z, h] of pinePlacements) {
-    const p = pineTree(h, Math.random() < 0.5 ? COLORS.mossDark : COLORS.moss);
+    const coneColor = Math.random() < 0.5 ? COLORS.mossDark : COLORS.moss;
+    const p = pineTree(h, coneColor);
     p.position.set(x, 0, z);
     p.rotation.y = Math.random() * Math.PI;
     island.add(p);
+    // pineTree adds [trunk, cone]; register the cone material with its own base
+    pineTargets.push({ material: p.children[1].material, key: "pine", base: coneColor, lighten: false });
   }
 
   // rocks near the clearing
@@ -420,11 +407,47 @@ export function buildWorld(scene) {
   scene.add(island);
 
   const fire = new Fire(island, new THREE.Vector3(0.9, 0, 0.2));
-  const petals = new Petals(
-    scene,
-    new THREE.Vector3(-2.3, 0, -1.2),
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 30 : 90
-  );
 
-  return { island, fire, petals, curve, treePosition: tree.position.clone() };
+  // ---- season tint registry ----
+  // Each entry stores its OWN base color (never read from material.color, which
+  // drifts as it is lerped every frame). Hills map h1->hl, h2->hd.
+  const cherryBlobs = tree.userData.blobs;
+  const snowCaps = tree.userData.snowCaps;
+  const tintTargets = [
+    { material: top.material[0], key: "top", base: COLORS.moss, lighten: false },
+    { material: h1.material, key: "hl", base: COLORS.mossLight, lighten: false },
+    { material: h2.material, key: "hd", base: COLORS.mossDark, lighten: false },
+    ...pineTargets,
+  ];
+  cherryBlobs.forEach((blob, i) => {
+    tintTargets.push({
+      material: blob.material,
+      key: "blossom",
+      base: i % 3 === 0 ? COLORS.sakuraLight : COLORS.sakura,
+      lighten: i % 3 === 0, // keep the sakuraLight blobs a shade brighter
+    });
+  });
+
+  const _a = new THREE.Color();
+  const _c = new THREE.Color();
+  const seasons = {
+    update(ws) {
+      const b = ws.seasonBlend;
+      for (const tt of tintTargets) {
+        const cur = SEASON_TINTS[ws.season];
+        const nxt = SEASON_TINTS[ws.nextSeason];
+        const curHex = cur[tt.key] ?? tt.base;
+        const nxtHex = nxt[tt.key] ?? cur[tt.key] ?? tt.base;
+        tintColor(_a, curHex, tt.lighten);
+        tintColor(_c, nxtHex, tt.lighten);
+        tt.material.color.lerpColors(_a, _c, b);
+      }
+      // sakura: blobs shrink to nothing in winter, snow caps grow in their place
+      const winterAmt = ws.season === "winter" ? 1 - b : ws.nextSeason === "winter" ? b : 0;
+      for (const blob of cherryBlobs) blob.scale.setScalar(Math.max(0.001, 1 - winterAmt));
+      for (const cap of snowCaps) cap.scale.setScalar(Math.max(0.001, winterAmt));
+    },
+  };
+
+  return { island, fire, curve, treePosition: tree.position.clone(), seasons };
 }
