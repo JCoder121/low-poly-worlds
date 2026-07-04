@@ -138,6 +138,51 @@ function swell(surf, t2, speed) {
   surf.mesh.geometry.computeVertexNormals();
 }
 
+// vertical waterfall strip: a flat plane in local x-y, subdivided into `rows`
+// stacked quads so the whole column can wiggle sideways as it descends. Built
+// centred on origin (y in [-h/2, h/2]) so it drops in where the fall box was.
+function buildVerticalStrip(width, height, rows) {
+  const hw = width / 2, hh = height / 2;
+  const positions = [];
+  for (let j = 0; j < rows; j++) {
+    const y0 = -hh + (j / rows) * height;
+    const y1 = -hh + ((j + 1) / rows) * height;
+    positions.push(-hw, y0, 0, hw, y0, 0, -hw, y1, 0);
+    positions.push(hw, y0, 0, hw, y1, 0, -hw, y1, 0);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return { geo, base: new Float32Array(positions) };
+}
+
+// lateral wiggle scrolling downward: shift each vertex's x by a sine keyed on
+// its (static) y, so the ribbon sways side-to-side down the column. Position
+// only — MeshBasicMaterial needs no normals. No allocation.
+function wiggleStrip(strip, t2, amp) {
+  const pos = strip.mesh.geometry.attributes.position;
+  const arr = pos.array, base = strip.base, r = strip.r;
+  for (let v = 0; v < arr.length; v += 3) {
+    arr[v] = base[v] + Math.sin(base[v + 1] * 6 + t2 * 4 + r) * amp;
+  }
+  pos.needsUpdate = true;
+}
+
+// lip fringe: a row of downward-pointing triangles (teeth) along the fall's top
+// edge — the white lace where the river tips over the lip. Non-indexed.
+function buildFringe(width, depth, teeth) {
+  const hw = width / 2;
+  const positions = [];
+  for (let i = 0; i < teeth; i++) {
+    const x0 = -hw + (i / teeth) * width;
+    const x1 = -hw + ((i + 1) / teeth) * width;
+    const mid = (x0 + x1) / 2;
+    positions.push(x0, 0, 0, x1, 0, 0, mid, -depth, 0);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geo;
+}
+
 // radial vertex-color banding for the pool disc: centre dark, rim pale
 function bandRadial(geo, maxR) {
   const pos = geo.attributes.position;
@@ -195,14 +240,30 @@ export function buildWater(island, mode = "island") {
   const step = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.42, 0.24), mat(COLORS.stone));
   step.position.set(-3.9, 0.21, 3.55);
   step.castShadow = true;
-  const cascade = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.44, 0.08), mat(FOAM, { transparent: true, opacity: 0.85 }));
-  cascade.position.set(-3.9, 0.22, 3.7);
   const poolGeo = new THREE.CylinderGeometry(0.85, 0.78, 0.06, 24, 3).toNonIndexed();
   bandRadial(poolGeo, 0.85);
   const poolMat = mat(WATER, { roughness: 0.5, vertexColors: true });
   const pool = new THREE.Mesh(poolGeo, poolMat);
   pool.position.set(-3.9, 0.03, 4.15);
-  group.add(step, cascade, pool);
+  group.add(step, pool);
+
+  // all animated waterfall/cascade ribbons live here; one update loop wiggles
+  // and opacity-fades the lot. `fullFade` marks strips that vanish entirely on
+  // freeze (the cascade), vs. the fall columns that only pale.
+  const fallStrips = [];
+  function addStrip(r, width, height, rows, x, y, z, opacity, amp, fullFade) {
+    const { geo, base } = buildVerticalStrip(width, height, rows);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+      color: FOAM, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide,
+    }));
+    mesh.position.set(x, y, z);
+    group.add(mesh);
+    fallStrips.push({ mesh, base, r, opacity, amp, fullFade });
+  }
+
+  // mini-cascade: 2 short ribbons at the step face, feeding the pool
+  addStrip(0, 0.2, 0.44, 4, -3.96, 0.22, 3.72, 0.7, 0.0125, true);
+  addStrip(1, 0.2, 0.44, 4, -3.84, 0.22, 3.7, 0.82, 0.0125, true);
 
   // ripple rings: 3 cycling outward from the cascade's impact point. Pool top
   // sits at y 0.03+0.03=0.06 — the brief's y 0.045 sits inside the disc, so
@@ -254,7 +315,8 @@ export function buildWater(island, mode = "island") {
   // the waterfall: island mode pours off the cliff edge, down past the
   // island's foot; expanse mode has no cliff at all (just rolling ground), so
   // the river instead ends in a sunken, misty basin at ground level.
-  let fallOrigin, fallDelta, CHUNK_TOP, CHUNK_BOTTOM, mistBaseY, fall;
+  let fallOrigin, fallDelta, CHUNK_TOP, CHUNK_BOTTOM, mistBaseY;
+  let fallCX, fallCY, fallCZ, fallRows, lipY, ringY; // ribbon/fringe/ring rig
 
   if (mode === "expanse") {
     // no cliff to occlude the fall here, so no camera-axis shift is needed —
@@ -270,9 +332,9 @@ export function buildWater(island, mode = "island") {
     basin.receiveShadow = true;
     group.add(basin);
 
-    fall = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.9, 0.14), mat(FOAM, { transparent: true, opacity: 0.8 }));
-    fall.position.set(fallOrigin.x, -0.35, fallOrigin.z);
-    group.add(fall);
+    // short fall: box centred at y -0.35, height 0.9 → top at 0.1, base at -0.8
+    fallCX = fallOrigin.x; fallCY = -0.35; fallCZ = fallOrigin.z;
+    fallRows = 6; lipY = 0.1; ringY = -0.15;
 
     CHUNK_TOP = 0.1;
     CHUNK_BOTTOM = -0.7;
@@ -293,20 +355,46 @@ export function buildWater(island, mode = "island") {
     fallDelta = CAM_FORWARD.clone().multiplyScalar(-FALL_SHIFT);
     const fallPos = fallOrigin.clone().add(fallDelta);
 
-    fall = new THREE.Mesh(new THREE.BoxGeometry(0.55, 4.6, 0.14), mat(FOAM, { transparent: true, opacity: 0.8 }));
-    fall.position.copy(fallPos);
-    group.add(fall);
+    // tall fall: box was height 4.6 centred at fallPos → top fallPos.y+2.3,
+    // base fallPos.y-2.3. Ribbons inherit the same centre + camera-axis shift.
+    fallCX = fallPos.x; fallCY = fallPos.y; fallCZ = fallPos.z;
+    fallRows = 16; lipY = fallPos.y + 2.3; ringY = fallPos.y - 2.2;
 
     CHUNK_TOP = 0.1 + fallDelta.y;
     CHUNK_BOTTOM = -4.5 + fallDelta.y;
     mistBaseY = -4.3 + fallDelta.y;
   }
 
+  // fall columns: 3 overlapping vertical ribbons (widths 0.16/0.20/0.24, x
+  // offset (r-1)*0.16, z jitter (r%2)*0.05, opacity 0.55/0.67/0.79). Layered
+  // + differing opacity so the assembly reads as living depth, not a flat slab.
+  for (let r = 0; r < 3; r++) {
+    addStrip(r, 0.16 + r * 0.04, (fallCY - lipY) * -2, fallRows,
+      fallCX + (r - 1) * 0.16, fallCY, fallCZ + (r % 2) * 0.05, 0.55 + r * 0.12, 0.025, false);
+  }
+
+  // lip fringe: white lace at the terrain lip where the river tips over
+  const fringe = new THREE.Mesh(
+    buildFringe(0.55, 0.18, 8),
+    new THREE.MeshBasicMaterial({ color: FOAM_LINE, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide })
+  );
+  fringe.position.set(fallCX, lipY, fallCZ + 0.06);
+  group.add(fringe);
+
+  // splash ring: one flat ring pulsing outward where the fall lands
+  const splashRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.9, 1.0, 20),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, side: THREE.DoubleSide })
+  );
+  splashRing.rotation.x = -Math.PI / 2;
+  splashRing.position.set(fallCX, ringY, fallCZ);
+  group.add(splashRing);
+
   // falling water chunks (instanced) + mist puffs at the base — offsets are
   // relative to fallOrigin, then shifted by the same fallDelta so they stay
   // visually locked to the fall column.
   const chunkGeo = new THREE.BoxGeometry(0.1, 0.22, 0.08);
-  const chunks = new THREE.InstancedMesh(chunkGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.75 }), 14);
+  const chunks = new THREE.InstancedMesh(chunkGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 }), 14);
   group.add(chunks);
   const chunkState = Array.from({ length: 14 }, () => ({
     y: CHUNK_TOP + Math.random() * (CHUNK_BOTTOM - CHUNK_TOP),
@@ -343,8 +431,24 @@ export function buildWater(island, mode = "island") {
     // traveling swell — glides to stillness across the freeze window; skipped
     // for reducedMotion (baked once at build time)
     if (!reducedMotion && frozen < 1) swell(riverSurf, t2, 1 - frozen);
-    cascade.material.opacity = 0.85 * (1 - frozen);
-    fall.material.opacity = 0.8 * (1 - frozen * 0.55); // frozen falls: paler, still
+
+    // waterfall + cascade ribbons: sway laterally down the column, pale (or
+    // fully fade, for the cascade) as the water freezes; static under freeze.
+    fallStrips.forEach((s) => {
+      s.mesh.material.opacity = s.opacity * (s.fullFade ? (1 - frozen) : (1 - frozen * 0.55));
+      if (!reducedMotion && frozen < 1) wiggleStrip(s, t2, s.amp);
+    });
+    // lip fringe: fades out entirely as the river freezes
+    fringe.material.opacity = 0.8 * (1 - frozen);
+    // splash ring: 1.6s cycle, scale 0.2→0.9; hidden under reducedMotion/freeze
+    const splashVisible = !reducedMotion && frozen < 1;
+    splashRing.visible = splashVisible;
+    if (splashVisible) {
+      const phase = (t2 / 1.6) % 1;
+      splashRing.scale.setScalar(0.2 + phase * 0.7);
+      splashRing.material.opacity = 0.45 * (1 - phase) * (1 - frozen);
+    }
+
     chunks.visible = frozen < 0.5;
     if (chunks.visible) {
       chunkState.forEach((c, i) => {
