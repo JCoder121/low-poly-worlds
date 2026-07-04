@@ -77,7 +77,7 @@ if (!reducedMotion) {
 const world = buildWorld(scene);
 
 const cycle = new Cycle({ reducedMotion });
-cycle.addStars(scene);
+cycle.addStars(scene, camera); // camera framed + positioned above
 
 const musashi = new Musashi(world.island, {
   fire: { position: new THREE.Vector3(0.25, 0, 0.55), facing: 1.1 }, // faces the fire

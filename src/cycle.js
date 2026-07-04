@@ -39,7 +39,9 @@ const smooth = (x) => x * x * (3 - 2 * x);
 export class Cycle {
   constructor({ reducedMotion = false } = {}) {
     const q = new URLSearchParams(location.search);
-    this.speed = reducedMotion ? 0 : Number(q.get("speed")) || 1;
+    const sp = Number(q.get("speed"));
+    this.speed = reducedMotion ? 0 : q.has("speed") && !isNaN(sp) ? sp : 1; // "?speed=0" must freeze
+
     this.dayT = q.has("time") ? Number(q.get("time")) % 1 : DUSK;
     const s = q.get("season");
     this.seasonIndex = s == null ? 0
@@ -51,20 +53,27 @@ export class Cycle {
     this._recompute();
   }
 
-  addStars(scene) {
+  addStars(scene, camera) {
+    camera.updateMatrixWorld(); // unproject needs a current matrixWorld pre-render
     const n = 130;
     const positions = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
-      // scatter on the far upper hemisphere behind/above the island
-      const a = Math.random() * Math.PI * 2;
-      const r = 30 + Math.random() * 12;
-      const y = 6 + Math.random() * 22;
-      positions.set([Math.cos(a) * r, y, Math.sin(a) * r], i * 3);
+      // scatter across the upper frame: unproject camera-space coordinates so
+      // stars are guaranteed on screen regardless of world-space framing
+      const ndc = new THREE.Vector3(
+        (Math.random() * 2 - 1) * 1.05, // full width, slight overshoot
+        Math.random() * 0.95 + 0.05,    // upper ~half of the frame
+        0.98                            // near the far plane, behind everything
+      );
+      ndc.unproject(camera);
+      positions.set([ndc.x, ndc.y, ndc.z], i * 3);
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    // ortho camera: no size attenuation, so size is in device pixels; fog off
+    // or the far-plane stars get fogged to the background color and vanish
     this.stars = new THREE.Points(geo, new THREE.PointsMaterial({
-      color: 0xf5f0e4, size: 0.12, transparent: true, opacity: 0, depthWrite: false,
+      color: 0xf5f0e4, size: 3, transparent: true, opacity: 0, depthWrite: false, fog: false,
     }));
     scene.add(this.stars);
   }
