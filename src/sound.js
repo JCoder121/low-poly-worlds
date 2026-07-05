@@ -9,8 +9,10 @@
 //                → bed gain, itself swelled by a 0.05Hz gain LFO (±30%)
 //   wash accent: white-noise burst → sweeping bandpass swell   every 6–14s
 //   timber creak: 80→140Hz sawtooth sweep → narrow bandpass    every 9–20s
-//   gull cry   : two descending vibrato'd sines (DAY ONLY)      every 25–60s
+//   gull cry   : two descending vibrato'd sines (CLEAR DAY ONLY) every 25–60s
 //   ship's bell: two detuned + one inharmonic decaying sine     every 90–150s
+//   rain bed   : white noise → bandpass hiss, gain = weather.rainAmount
+//   thunder    : low filtered-noise roll, 0.8–2s after each storm flash
 // Event timing accumulates dt inside update() (no setInterval → scrub-safe).
 
 function rand(a, b) {
@@ -50,6 +52,7 @@ export class Ambience {
     this._creakT = 0;
     this._gullT = 0;
     this._bellT = 0;
+    this._prevFlash = 0; // rising-edge detector for storm-flash → thunder
 
     // honor a stored preference, but only after the first user gesture so the
     // AudioContext is allowed to start (autoplay policy).
@@ -131,6 +134,23 @@ export class Ambience {
     bedSrc.connect(bedLP).connect(bedGain).connect(master);
     bedSrc.start();
 
+    // ---- rain bed: white noise → bandpass + highpass hiss → gain (weather) ----
+    // gain is silent until rainAmount rises, tracked smoothly each frame.
+    const rainSrc = ctx.createBufferSource();
+    rainSrc.buffer = this._white;
+    rainSrc.loop = true;
+    const rainBP = ctx.createBiquadFilter();
+    rainBP.type = "bandpass";
+    rainBP.frequency.value = 1600;
+    rainBP.Q.value = 0.5;
+    const rainHP = ctx.createBiquadFilter();
+    rainHP.type = "highpass";
+    rainHP.frequency.value = 800;
+    const rainGain = (this.rainGain = ctx.createGain());
+    rainGain.gain.value = 0;
+    rainSrc.connect(rainBP).connect(rainHP).connect(rainGain).connect(master);
+    rainSrc.start();
+
     // seed the event clocks so nothing fires on the very first frames
     this._washT = rand(3, 8);
     this._creakT = rand(6, 14);
@@ -144,10 +164,20 @@ export class Ambience {
     if (!this._enabled || !this.ctx) return;
     const ctx = this.ctx;
     const blend = ws ? ws.blend : 0;
+    const wx = ws && ws.weather ? ws.weather : null;
 
     // bed opens up in daylight (~420Hz), closes toward night (~300Hz)
     const cut = 300 + 120 * (1 - blend);
     this.bedLP.frequency.setTargetAtTime(cut, ctx.currentTime, 0.6);
+
+    // rain bed follows weather.rainAmount; thunder rolls after each flash spike
+    if (this.rainGain) {
+      const ra = wx ? wx.rainAmount : 0;
+      this.rainGain.gain.setTargetAtTime(ra * 0.13, ctx.currentTime, 0.6);
+    }
+    const flash = wx ? wx.flash : 0;
+    if (flash > 0.6 && this._prevFlash <= 0.6) this._thunder(rand(0.8, 2));
+    this._prevFlash = flash;
 
     // reduced-motion → longer, calmer gaps between accents
     const slow = ws && ws.reduced ? 1.6 : 1;
@@ -166,7 +196,8 @@ export class Ambience {
 
     this._gullT -= dt;
     if (this._gullT <= 0) {
-      if (blend < 0.5) this._gull(); // day only; still reschedule at night
+      // clear daylight only; still reschedule under night/rain/fog
+      if (blend < 0.5 && (!wx || wx.kind === "clear")) this._gull();
       this._gullT = rand(25, 60) * slow;
     }
 
@@ -195,6 +226,28 @@ export class Ambience {
     src.connect(bp).connect(g).connect(this.master);
     src.start(t);
     src.stop(t + 2.3);
+  }
+
+  // a soft thunder roll after a lightning flash: brown noise swelled through a
+  // downward-sweeping lowpass, quiet and distant. `delay` = seconds after strike.
+  _thunder(delay) {
+    const ctx = this.ctx, t = ctx.currentTime + delay;
+    const src = ctx.createBufferSource();
+    src.buffer = this._brown;
+    src.loop = true;
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.Q.value = 0.6;
+    lp.frequency.setValueAtTime(180, t);
+    lp.frequency.exponentialRampToValueAtTime(70, t + 2.2);
+    const g = ctx.createGain();
+    const dur = rand(1.2, 2.2);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.09, t + 0.5); // swell
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(lp).connect(g).connect(this.master);
+    src.start(t);
+    src.stop(t + dur + 0.1);
   }
 
   // a timber creak: quiet sawtooth sweep pushed through a narrow bandpass

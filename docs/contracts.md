@@ -184,3 +184,93 @@ at night. Night: bed lowpass down to ~300Hz, no gulls. Master gain 0.5,
 - Your file must be import-clean (no side effects beyond class/const
   exports) and must not crash if a named spot is missing (fallback
   Vector3(0, deckY, 0)).
+
+---
+
+# v2 addendum — continuous cycle, weather, sky, fishbowl
+
+The two-mode day/night system is replaced by a CONTINUOUS clock + a weather
+machine + a dedicated sky module. Camera: expanse frustum 13.8 target (0,2,0);
+island page frustum 16 (bowl needs headroom) — main.js owns this.
+
+## ws v2 (cycle.js) — superset, back-compatible
+
+`ws = { dayPos: 0..1 (dawn 0, midday 0.25, dusk 0.55, deep night 0.8 — musashi
+convention, ?time= scrubs it), blend: 0..1 nightness (KEEP — captain/crew/ship
+read it; derive smoothly from dayPos), mode: 'dawn'|'day'|'dusk'|'night' (band
+label), moonPhase: 0..1 (0 new → 0.5 full → 1 new; random per load; live mode
+= real synodic phase), time, reduced, lighting: { bg, sun, hemiSky, hemiGround,
+trough, mid, crest: Color; sunIntensity, hemiIntensity, fillIntensity,
+starAlpha, lampIntensity: number; sunColor: Color for the sky DISC; discPos:
+0..1 rise→set progress of whichever disc is up (sun by day, moon by night) },
+weather: { kind: 'clear'|'fog'|'rain'|'storm', blend: 0..1 into kind,
+fogFactor: 1 clear → 0.45 heavy (main.js multiplies fog distances),
+dim: 1 → 0.75 (light multiplier, applied by cycle to intensities BEFORE
+publishing), rainAmount: 0..1, flash: 0..1 (lightning this frame, decays fast) } }`
+
+Lighting keyframes at the four anchors, ring-lerped: dawn rose-gold low sun /
+midday bright warm-white high sun / dusk ember-gold low sun (the postcard
+default) / night cool moon. Water ramps shift with them (dawn rose-tinted
+crests, dusk gold, night slate — sky-mirror stays).
+
+?time=, ?weather=clear|fog|rain|storm (pins), ?speed (0 freezes), ?phase=0..1
+(moon), ?mode=day|night kept as aliases → time 0.25 / 0.8.
+
+## Files & owners (v2 wave)
+
+- **cycle.js rewrite + NEW weather.js + sound.js patch** [agent cycle-weather]
+  - weather.js: `class Weather(scene)` `update(ws, dt)` — state machine:
+    clear (dwell 60-150s, weighted 60%) ↔ fog (25%) ↔ rain (12%) → storm (3%,
+    only via rain); 10-18s eased transitions writing ws.weather. Rain =
+    instanced streak field over the visible sea (musashi weather.js pattern),
+    ~140 streaks (40 reduced), only near-camera volume. Storm = rain + flash:
+    every 6-16s, flash spikes to 1 then exponential decay ~0.25s; NO bolt
+    geometry (calm wins — light does it). Fog kind also raises a low unlit
+    mist plane opacity ~0.12 over the water. Cycle owns publishing
+    ws.weather; weather.js drives its numbers + owns rain/mist meshes.
+  - sound.js patch: rain bed (bandpassed noise, gain by rainAmount), soft
+    thunder roll 0.8-2s after each flash (filtered noise swell, quiet),
+    gulls only when clear/day. No other layer changes.
+- **NEW sky.js** [agent sky] — `class Sky(scene, camera, pageMode)`
+  `update(ws)`. Owns EVERYTHING celestial (main.js's old star/moon code is
+  being deleted; do not depend on it).
+  - Expanse: camera-child band layer (positions are camera-local, z ≈ -57,
+    depthTest false, fog false, renderOrder 90+; band half-width ~23, y 3..13
+    visible). Sun disc (r .8, color ws.lighting.sunColor, day) and moon disc
+    (r .75, pale #e8e4d4, night) arc by ws.lighting.discPos: x = lerp(-19,
+    19, discPos), y = 2.5 + 16·sin(π·discPos) — the apex intentionally
+    exceeds the band → disc slides off-frame near midday/midnight ("absent
+    noon"). Moon phase: full disc + an offset overlay disc tinted to
+    ws.lighting.bg (slides across by moonPhase; at 0.5 fully clear = full
+    moon). Stars: ~150 points in the band, opacity starAlpha·(weather clear
+    ? 1 : 0.25). Shooting star: clear nights only, random every 100-240s —
+    a thin bright streak (scaled plane) crossing ~1/3 of the band in 0.7s
+    with a fading tail. All opacities also × weather visibility (fog/rain
+    hide discs 60%).
+  - Island (fishbowl): celestials are WORLD-anchored above the bowl —
+    same discs (r 1.1) arcing a real semicircle over it: rise (+13, 1, 0),
+    apex (0, 13.5, 0), set (-13, 1, 0) by discPos; stars = small Points
+    cloud (r ~12 shell, y > 4) at night; shooting star streaks over the
+    bowl. No camera-child hack on this page; depthTest normal (they're
+    above everything).
+- **water.js island branch → glass bowl** [agent fishbowl]
+  - Replace slab skirt/cap with an OPEN GLASS BOWL: lathe profile — rim lip
+    at (r 14.2, y 4.6), wall curving down/in to a rounded bottom (r ~4.5,
+    y -6.2); LatheGeometry ~48×8 segs, flat-shaded. Glass material:
+    MeshStandardMaterial roughness 0.15, transparent, opacity 0.16, side
+    DoubleSide, depthWrite false + a slightly more opaque rim torus
+    (opacity 0.35) at the lip. Inside below waterline: a dark inner wall
+    cylinder (mat troughNight-ish, opacity 1) so the sea reads deep, plus
+    the existing cap disc at y -0.23 (keep). Sea surface disc: reuse the
+    grid-clip code, radius 13.2. Soft shadow blob under bowl r 15.5. The
+    sea + ship must clear the near glass: ship half-length 9.75 < 13.2 ✓.
+    Splash/ring pools unchanged. ws.weather.rainAmount > 0 → nothing
+    special (rain streaks from weather.js fall inside bowl radius only on
+    island — weather.js handles clipping by pageMode; you don't).
+- **main.js, traffic.js (passing-island rare far-lane cast, spawn/lane
+  numbers), html/css (toggle removal: mode toggle goes away — time flows;
+  live ↗ / sound ↗ / island-expanse ↗ remain), skyline status line** — MAIN
+  SESSION ONLY. Do not touch.
+
+Rules unchanged: palette-only colors, ws.time animation, zero per-frame
+allocs, `node --check` your files, edit ONLY your files.

@@ -42,10 +42,13 @@ export class Crew {
     this.bounds = (ship && ship.deckBounds) || { minX: -2.4, maxX: 2.4, minZ: -1.0, maxZ: 1.0 };
     this._fallback = { position: new THREE.Vector3(0, deckY, 0), facing: 0 };
 
+    // four hands, task homes spread fore / mid / aft so the bigger deck never
+    // clusters (swabA fore, swabC mid, swabB aft; rope + cannon at their props)
     const CFG = [
       { shirt: COLORS.crewShirt, bandana: COLORS.crimson, pants: COLORS.crewPants, swab: "swabA", init: "swab" },
-      { shirt: COLORS.crewStripe, bandana: COLORS.brass, pants: COLORS.boots, swab: "swabB", init: "ropeHaul" },
+      { shirt: COLORS.crewStripe, bandana: COLORS.brass, pants: COLORS.boots, swab: "swabC", init: "ropeHaul" },
       { shirt: COLORS.crewShirt, bandana: COLORS.crewStripe, pants: COLORS.crewPants, swab: "swabA", init: "cannonPolish" },
+      { shirt: COLORS.crewStripe, bandana: COLORS.rope, pants: COLORS.crewPants, swab: "swabB", init: "swab" },
     ];
 
     this.hands = [];
@@ -183,7 +186,7 @@ export class Crew {
   // advance a walk one frame; returns true on arrival
   stepWalk(h, dt, t) {
     const w = h.walk;
-    w.dist = Math.min(w.length, w.dist + dt * 0.5);
+    w.dist = Math.min(w.length, w.dist + dt * 0.75); // bigger deck, same stroll feel
     const u = w.length > 1e-4 ? w.dist / w.length : 1;
     w.curve.getPointAt(Math.min(1, u), _p);
     w.curve.getTangentAt(Math.min(1, u), _tan);
@@ -333,7 +336,7 @@ export class Crew {
 
         case "climbing": {
           h.climbT += dt;
-          const fr = Math.min(1, h.climbT / 2.2);
+          const fr = Math.min(1, h.climbT / 3.2); // taller mainmast → longer glide up
           h.fig.group.position.y = h.baseY + (h.topY - h.baseY) * easeInOut(fr);
           h.fig.armL.rotation.x = 1.4;
           h.fig.armR.rotation.x = 1.4;
@@ -350,7 +353,7 @@ export class Crew {
 
         case "descending": {
           h.climbT += dt;
-          const fr = Math.min(1, h.climbT / 2.0);
+          const fr = Math.min(1, h.climbT / 2.8);
           h.fig.group.position.y = h.topY + (h.baseY - h.topY) * easeInOut(fr);
           h.fig.group.rotation.y = h.scanFacing;
           h.fig.armL.rotation.x = 1.4;

@@ -51,3 +51,28 @@ mid-teal owns the sea. Hard-won notes:
 - `src/main.js` — renderer, ortho camera + parallax, lights, loader, toggles, sky
 
 Scrub params & verification recipe: `.claude/skills/verify/SKILL.md`.
+
+## v2 — the big ship, the whole day, the weather
+
+- **The brig is the world now**: hull ~3× (19 units), rig height-capped
+  (~2.4×) and detail ~2× so the size-1 figures read right. 12 captain
+  activities (+fishing, quarterdeck pacing, the ship's bell), 4 crew.
+- **Continuous day** (`src/cycle.js`): 6-min day, ring-lerped anchors with
+  HOLD plateaus (day 0.25–0.45, golden hour 0.55–0.62, night 0.72–0.93) —
+  without plateaus every state is mid-fade. Dawn rose / noon turquoise /
+  golden-hour ember / night slate water ramps.
+- **Weather machine** (`src/weather.js`): clear ↔ fog ↔ rain → storm
+  (Markov, storm only via rain); fog factor scales scene fog, rain is an
+  instanced streak field, lightning is a full-scene flash (no bolt), each
+  with synthesized audio (rain bed, delayed thunder).
+- **The sky admits it's a postcard** (`src/sky.js`): expanse discs arc the
+  top haze band and slip off-frame near apex ("absent noon"); moon is
+  phase-masked (real synodic phase in live mode); stars + pooled shooting
+  star on clear nights. The fishbowl page gets real overhead celestials.
+- **Island = open glass fishbowl**: lathe glass wall + rim, sea disc r13.2
+  inside, celestials hung above like a mobile. Traffic and the plank
+  swimmer fade at the rim.
+- **Rare far-lane sights**: night ghost ship, and a passing palm island
+  (~90s, fog-hazed, never bobs).
+- Physical-light-unit lesson repeated: the 3× cabin hid the stern lantern —
+  raised above the roofline at intensity ≈16.

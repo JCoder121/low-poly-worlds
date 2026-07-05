@@ -8,7 +8,7 @@ import * as THREE from "three";
 import { COLORS, mat, unlit } from "./palette.js";
 import { makeFigure, breathe, walkPose, restPose } from "./figures.js";
 
-const WALK_SPEED = 0.55;   // deck units / second (scrubbed time)
+const WALK_SPEED = 0.75;   // deck units / second (scrubbed time) — bigger deck, same stroll feel
 const STEP_FREQ = 10;      // walk-pose radians per unit travelled (arc-length gait)
 const SWING = 0.85;        // walkPose amplitude — the swagger
 
@@ -103,6 +103,20 @@ export class Captain {
     this.crumb.visible = false;
     f.armR.add(this.crumb);
 
+    // fishing rod: a thin tapered pole down the right arm, tilted outboard, with
+    // a line dropping from the tip toward the water. `rodStick` twitches on bites.
+    this.rod = new THREE.Group();
+    this.rodStick = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.028, 1.5, 5), mat(COLORS.mast));
+    this.rodStick.position.y = -0.75; // tip lands at rod-space y = -1.5
+    this.rodStick.castShadow = true;
+    const rodLine = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 3.6, 4), mat(COLORS.rope));
+    rodLine.position.y = -3.3; // top meets the rod tip (-1.5), hangs on down toward the sea
+    this.rod.add(this.rodStick, rodLine);
+    this.rod.rotation.x = -0.2; // slight droop past the arm (the arm does the reaching-out)
+    this.rod.position.y = -0.28;
+    this.rod.visible = false;
+    f.armR.add(this.rod);
+
     // gull prop: perches at gullRail while he feeds it (sibling on the ship)
     this.gull = new THREE.Group();
     const gullBody = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 5), mat(COLORS.gull));
@@ -128,15 +142,19 @@ export class Captain {
 
     this.hideProps = () => {
       this.spyglass.visible = this.sword.visible = this.compass.visible =
-        this.mug.visible = this.crumb.visible = this.gull.visible = false;
+        this.mug.visible = this.crumb.visible = this.gull.visible = this.rod.visible = false;
     };
 
-    // ---- activity plan ----
-    this.activities = ["helm", "spyglass", "compass", "map", "rum", "flourish", "rail", "gull", "nap"];
+    // ---- activity plan (the accepted ?activity= list is this.activities) ----
+    this.activities = ["helm", "spyglass", "compass", "map", "rum", "flourish", "rail", "gull", "nap", "fishing", "pace", "bell"];
     this.SPOT_FOR = {
       helm: "helm", spyglass: "bow", compass: "compass", map: "mapBarrel",
       rum: "steps", flourish: "hatch", rail: "rail", gull: "gullRail", nap: "mastNap",
+      fishing: "fishing", pace: "pace1", bell: "bell",
     };
+    // pacing endpoints, resolved once (walked between while the activity runs)
+    this._pace1 = this.spotFor("pace1").position;
+    this._pace2 = this.spotFor("pace2").position;
 
     const q = new URLSearchParams(location.search);
     const aq = q.get("activity");
@@ -158,9 +176,11 @@ export class Captain {
   get activity() { return this.current; }
 
   // { position: Vector3 (local), facing: radians }; never mutate the ship's own
-  // vector, and fall back to deck-centre if a spot is missing.
+  // vector, and fall back to deck-centre if a spot is missing. `name` may be an
+  // activity name (mapped through SPOT_FOR) or a raw spot name (passes through).
   spotFor(name) {
-    const s = this.ship && this.ship.spots && this.ship.spots[name];
+    const key = (this.SPOT_FOR && this.SPOT_FOR[name]) || name;
+    const s = this.ship && this.ship.spots && this.ship.spots[key];
     if (s && s.position) return { position: s.position, facing: s.facing || 0 };
     return { position: new THREE.Vector3(0, this.deckY, 0), facing: 0 };
   }
@@ -246,6 +266,22 @@ export class Captain {
       f.armL.rotation.set(-0.3, 0, 0.5);
       f.armR.rotation.set(-0.25, 0, -0.5);
       f.head.rotation.x = 0.2;
+    } else if (name === "fishing") {
+      // stands at the stern quarter rail, rod arm reaching out over the water
+      f.group.rotation.x = 0.05;
+      f.armR.rotation.set(-1.0, 0, -0.15); // right arm forward/out over the rail
+      f.armL.rotation.set(-0.3, 0, 0.22);
+      f.head.rotation.x = 0.15;
+      this.rod.visible = true;
+    } else if (name === "pace") {
+      // pacing base pose: hands clasped behind the back (both pivots back ~0.5)
+      f.armL.rotation.set(-0.5, 0, 0.12);
+      f.armR.rotation.set(-0.5, 0, -0.12);
+    } else if (name === "bell") {
+      // stands by the bell; the ring gesture is layered on per frame
+      f.armR.rotation.set(-0.2, 0, -0.1);
+      f.armL.rotation.set(-0.1, 0, 0.15);
+      f.head.rotation.x = 0.05;
     }
   }
 
@@ -271,7 +307,7 @@ export class Captain {
     for (const a of this.activities) {
       if (a === this.current) continue;
       let w = 1;
-      if (night && (a === "nap" || a === "rum" || a === "rail")) w = 3;
+      if (night && (a === "nap" || a === "rum" || a === "rail" || a === "fishing")) w = 3;
       pool.push([a, w]);
       total += w;
     }
@@ -515,6 +551,41 @@ export class Captain {
       f.head.rotation.x = 0.3 + Math.sin(t * 0.6) * 0.05;
     } else if (a === "nap") {
       f.head.rotation.x = 0.2 + Math.sin(t * 0.5) * 0.05; // slow doze bob
+    } else if (a === "fishing") {
+      // patient watch of the line, with the odd rod-tip twitch on a nibble
+      const k = t % 6;
+      const twitch = k < 0.35 ? Math.sin((k / 0.35) * Math.PI) * 0.35 : 0;
+      this.rodStick.rotation.x = twitch;
+      f.armR.rotation.x = -1.0 - twitch * 0.2;
+      f.group.rotation.set(0.05, this._faceY, Math.sin(t * 0.22) * 0.02);
+      f.head.rotation.y = Math.sin(t * 0.18) * 0.14;
+    } else if (a === "pace") {
+      // slow there-and-back walk along the quarterdeck, hands clasped behind
+      const period = 9;
+      const ph = (t % period) / period;
+      const tri = ph < 0.5 ? ph * 2 : (1 - ph) * 2; // 0→1→0 sweep
+      const u = easeInOut(tri);
+      const ax = this._pace1.x, az = this._pace1.z;
+      const bx = this._pace2.x, bz = this._pace2.z;
+      const px = ax + (bx - ax) * u, pz = az + (bz - az) * u;
+      const dir = ph < 0.5 ? 1 : -1; // heading flips at each end
+      const heading = Math.atan2((bx - ax) * dir, (bz - az) * dir);
+      this._stepPhase += WALK_SPEED * 0.6 * STEP_FREQ * dScaled;
+      const bob = Math.abs(Math.sin(this._stepPhase * 0.5)) * 0.03;
+      f.group.position.set(px, this.deckY + bob, pz);
+      f.group.rotation.set(0, heading, Math.sin(this._stepPhase) * 0.04);
+      // legs stride; arms stay clasped behind (override walkPose's arm swing)
+      f.legL.rotation.x = Math.sin(this._stepPhase) * 0.45;
+      f.legR.rotation.x = -Math.sin(this._stepPhase) * 0.45;
+      f.armL.rotation.set(-0.5, 0, 0.12);
+      f.armR.rotation.set(-0.5, 0, -0.12);
+    } else if (a === "bell") {
+      // one slow reach-and-ring cycle every few seconds, then stands easy
+      const k = t % 7;
+      const ring = k < 1.4 ? Math.sin((k / 1.4) * Math.PI) : 0;
+      f.armR.rotation.x = -0.2 - ring * 1.15; // reach up to the bell rope and pull
+      f.body.rotation.z = ring * 0.05;
+      f.head.rotation.x = 0.05 + ring * 0.1;
     }
 
     breathe(f, t);

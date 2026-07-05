@@ -9,13 +9,13 @@ import { makeLinkDeck } from "./links.js";
 const rand = (a, b) => a + Math.random() * (b - a);
 
 // Lane geometry (world). Near lane rides starboard, camera-side.
-const LANE_Z = 3.4;
-const LANE_JITTER = 0.8;
+const LANE_Z = 8.4; // clear of the 3x hull + plank
+const LANE_JITTER = 1.3;
 // island page: the sea is a disc — drifters enter/leave at its rim rather
 // than the fog edge, so nothing ever floats over the bare parchment
 const ISLAND_PAGE = document.body.dataset.mode === "island";
-const SPAWN_X = ISLAND_PAGE ? 8.8 : 26;
-const GHOST_Z = -14;
+const SPAWN_X = ISLAND_PAGE ? 8.0 : 26;
+const GHOST_Z = -17;
 
 // ---------------------------------------------------------------------------
 // Builders — primitives + palette only. Each returns a Group facing +x, with
@@ -248,6 +248,42 @@ function buildGhostShip() {
   return g;
 }
 
+
+// passing island — a distant landmass drifting the far lane over ~90s; the
+// fog hazes it into a mirage. Day or night, expanse only, never bobs.
+function buildIsle() {
+  const g = new THREE.Group();
+  for (const [mx, mr, mh] of [[0, 4.6, 1.5], [2.6, 2.6, 1.0], [-2.8, 3.0, 1.2]]) {
+    const mound = new THREE.Mesh(
+      jitterGeometry(new THREE.ConeGeometry(mr, mh, 8), 0.18),
+      mat(COLORS.turtleShell)
+    );
+    mound.position.set(mx, mh / 2 - 0.25, 0);
+    g.add(mound);
+  }
+  const sand = new THREE.Mesh(
+    jitterGeometry(new THREE.CylinderGeometry(5.6, 5.9, 0.5, 12), 0.1),
+    mat(COLORS.paper)
+  );
+  sand.position.y = -0.1;
+  g.add(sand);
+  for (const [px, ph] of [[1.4, 2.2], [-1.1, 1.8]]) {
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, ph, 5), mat(COLORS.driftwood));
+    trunk.position.set(px, ph / 2 + 0.6, 0.4);
+    trunk.rotation.z = px > 0 ? -0.12 : 0.16;
+    g.add(trunk);
+    for (let f = 0; f < 5; f++) {
+      const frond = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.05, 0.22), mat(COLORS.turtle));
+      frond.geometry.translate(0.45, 0, 0);
+      frond.position.set(px + (px > 0 ? -0.14 : 0.2), ph + 0.55, 0.4);
+      frond.rotation.y = (f / 5) * Math.PI * 2;
+      frond.rotation.z = -0.35;
+      g.add(frond);
+    }
+  }
+  return g;
+}
+
 // ---------------------------------------------------------------------------
 // Cast — weighted. Ghost is night-only (rerolled by day).
 // ---------------------------------------------------------------------------
@@ -260,6 +296,7 @@ const CAST = {
   fin: { w: 4, build: buildFin, scale: 0.7, yoff: 0.0, bubble: false },
   whale: { w: 2, build: buildWhale, scale: 1.1, yoff: 0.0, bubble: false },
   ghost: { w: 1, build: buildGhostShip, scale: 1.0, yoff: 0.2, bubble: false },
+  isle: { w: 2, build: buildIsle, scale: 1.0, yoff: 0.1, bubble: false, far: true, noBob: true },
 };
 const CAST_ORDER = Object.keys(CAST);
 const CAST_TOTAL = CAST_ORDER.reduce((s, k) => s + CAST[k].w, 0);
@@ -288,14 +325,14 @@ export class Traffic {
 
     this.active = null; // one drifter at a time
     this.timer = 0;
-    this.nextGap = rand(6, 14); // first visitor arrives a touch early
+    this.nextGap = rand(10, 20); // first visitor arrives a touch early
     this._v = new THREE.Vector3(); // scratch for projection — no per-frame alloc
   }
 
   spawn(isNight) {
     let kind = pickKind(isNight);
-    // the ghost's far lane doesn't exist on the island disc
-    while (ISLAND_PAGE && kind === "ghost") kind = pickKind(isNight);
+    // far-lane cast (ghost, passing isle) doesn't fit the island disc
+    while (ISLAND_PAGE && (kind === "ghost" || kind === "isle")) kind = pickKind(isNight);
     const spec = CAST[kind];
     const group = spec.build();
     const scale = spec.scale * rand(0.9, 1.08);
@@ -303,7 +340,8 @@ export class Traffic {
 
     const dir = Math.random() < 0.5 ? 1 : -1; // -x→+x or +x→-x
     const isGhost = kind === "ghost";
-    const z = isGhost ? GHOST_Z + rand(-1, 1) : LANE_Z + rand(-LANE_JITTER, LANE_JITTER);
+    const isFar = isGhost || kind === "isle";
+    const z = isFar ? GHOST_Z + rand(-1, 1) : LANE_Z + rand(-LANE_JITTER, LANE_JITTER);
     group.position.set(-dir * SPAWN_X, 0, z);
     group.rotation.y = dir > 0 ? 0 : Math.PI; // built facing +x
 
@@ -317,7 +355,7 @@ export class Traffic {
       x: -dir * SPAWN_X,
       startX: -dir * SPAWN_X,
       y: 0,
-      speed: isGhost ? rand(0.18, 0.26) : rand(0.35, 0.5),
+      speed: kind === "isle" ? rand(0.11, 0.15) : isGhost ? rand(0.18, 0.26) : rand(0.35, 0.5),
       ph: Math.random() * Math.PI * 2,
       rollF: rand(0.5, 0.9),
       canBubble: spec.bubble,
@@ -382,7 +420,7 @@ export class Traffic {
       }
     });
     this.active = null;
-    this.nextGap = rand(20, 45);
+    this.nextGap = rand(40, 80); // spaced out — visitors are occasions, not parades
     this.timer = 0;
   }
 
@@ -439,9 +477,9 @@ export class Traffic {
       zr = a.z + 0.16 * m * Math.sin(t * 1.1 + a.ph); // lateral slither
     }
 
-    a.y = waveHeight(a.x, zr, t) + yoff;
+    a.y = (a.spec.noBob ? 0 : waveHeight(a.x, zr, t)) + yoff;
     a.group.position.set(a.x, a.y, zr);
-    a.group.rotation.z = 0.05 * m * Math.sin(t * a.rollF + a.ph);
+    a.group.rotation.z = a.spec.noBob ? 0 : 0.05 * m * Math.sin(t * a.rollF + a.ph);
     a.group.rotation.y = (a.dir > 0 ? 0 : Math.PI) + (a.kind === "fin" ? 0.28 * m * Math.sin(t * 1.4 + a.ph) : 0);
 
     this.animateIdle(a, t, m);

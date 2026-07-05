@@ -8,9 +8,9 @@ export const COLORS = {
   nightBg: 0x161f36,
 
   // water ramps (trough → mid → crest)
-  troughDay: 0x14506e,
-  midDay: 0x1d6e93,
-  crestDay: 0x57b7c4,
+  troughDay: 0x14597a,
+  midDay: 0x1f7fa4,
+  crestDay: 0x5fc4cd,
   troughNight: 0x0b2238,
   midNight: 0x24466b,
   crestNight: 0x4c82a8,

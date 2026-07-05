@@ -35,7 +35,7 @@ function dip(b) {
 // phase durations (seconds); walk is distance-driven, splash sub-timed below
 const MUSTER = 3.0;
 const BOUNCE = 3.0;
-const SPLASH_T = 0.66; // ballistic flight time to water entry
+const SPLASH_T = 0.9; // ballistic flight time to water entry — longer fall from the raised deck
 const UNDERWATER = 0.4;
 
 export class Plank {
@@ -183,8 +183,8 @@ export class Plank {
 
     const T = SPLASH_T;
     const x0 = _p.x, y0 = _p.y, z0 = _p.z;
-    const xt = x0 + 1.9, zt = z0 + 0.9; // arc forward (+x) and outboard (+z)
-    const vy = 2.4; // a hopeful little pop before gravity wins
+    const xt = x0 + 2.5, zt = z0 + 0.5; // arc forward (+x) and a touch outboard (+z), lands ~z 6.5
+    const vy = 3.0; // a hopeful little pop before gravity wins
     const g = (2 * (y0 + vy * T)) / (T * T); // solved so he meets the water (y=0) at T
     this.launch = { x0, y0, z0, xt, zt, vx: (xt - x0) / T, vy, vz: (zt - z0) / T, g, T };
 
@@ -210,7 +210,7 @@ export class Plank {
       if (tau >= L.T) {
         this.splashEntered = true;
         this.prisoner.group.position.set(L.xt, 0, L.zt);
-        if (this.water && this.water.splash) this.water.splash(L.xt, L.zt, 1.4);
+        if (this.water && this.water.splash) this.water.splash(L.xt, L.zt, 1.8);
         this.prisoner.group.visible = false; // gone under
       }
     } else {
@@ -230,6 +230,8 @@ export class Plank {
   }
 
   swim(t, dt, ws) {
+    // on the fishbowl page the world ends at the glass — fade at the rim
+    const exitX = document.body.dataset.mode === "island" ? 11 : 20;
     const st = this.phaseTime;
     this.swimX += 0.5 * dt; // rides the traffic lane out, +x world
     const wy = waveHeight(this.swimX, this.swimZ, ws.time);
@@ -242,10 +244,10 @@ export class Plank {
     this.prisoner.legR.rotation.x = Math.sin(t * 1.6 + Math.PI + 0.4) * 0.18;
 
     // dissolve into the fog toward the edge
-    if (st > 4.5 || this.swimX > 20) {
+    if (st > 4.5 || this.swimX > exitX) {
       const o = Math.max(0, 1 - (st - 4.5) / 2.5);
       this._setOpacity(o);
-      if (o <= 0.02 || this.swimX > 24) this._finish();
+      if (o <= 0.02 || this.swimX > exitX + 2) this._finish();
     }
   }
 
