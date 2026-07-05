@@ -1,6 +1,7 @@
 import { resolve } from "path";
 
 export default {
+  base: "/low-poly-worlds/sparrows-wake/",
   build: {
     rollupOptions: {
       input: {
