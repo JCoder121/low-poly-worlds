@@ -1,7 +1,7 @@
 // The water: the river runs under the bridge straight into the koi pond/lake
 // at grade — the diorama's standout, still-high-poly artifact.
 import * as THREE from "three";
-import { COLORS, mat } from "./world.js";
+import { COLORS, mat, rock } from "./world.js";
 
 export const WATER = 0x93bfd0;
 export const ICE = 0xd8e4ea;
@@ -272,10 +272,18 @@ export function buildWater(island, mode = "island") {
 
   const dummy = new THREE.Object3D();
 
+  // sittable rock on the pond's south-east shore for the flute spot
+  const fluteRock = rock(0.22);
+  fluteRock.position.set(-1.7, 0.05, 7.0);
+  group.add(fluteRock);
+
   const spots = {
-    // musashi stands in the pond shallows facing the inflow (0.72 in from the
-    // rim, far side of the ring origin); facing = atan2(ringX-posX, ringZ-posZ)
-    misogi: { position: new THREE.Vector3(-2.05, 0, 5.55), facing: -2.131 },
+    // gassho at the water's edge, just outside the pond rim, facing the pond;
+    // facing = atan2(centerX-posX, centerZ-posZ) ≈ atan2(-0.95, 0.85)
+    misogi: { position: new THREE.Vector3(-1.25, 0, 5.05), facing: -0.84 },
+    // seated on the rock on the pond's SE shore, facing the pond;
+    // facing = atan2(centerX-posX, centerZ-posZ) ≈ atan2(-0.5, -1.1)
+    flute: { position: new THREE.Vector3(-1.7, 0, 7.0), facing: -2.71 },
   };
 
   function update(dt, t2, ws) {

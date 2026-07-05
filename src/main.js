@@ -209,7 +209,8 @@ renderer.setAnimationLoop(() => {
   landmarks.update(dt, t, ws);
   water.update(dt, t, ws);
   cat.update(dt, t, ws);
-  musashi.update(dt, t, ws);
+  musashi.update(dt, t, ws, travelers.active?.mesh.position ?? null);
+  ambience.setFlute(musashi.activity === "flute" && musashi.phase === "settled");
   travelers.update(dt, t);
 
   renderer.render(scene, camera);
