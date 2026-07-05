@@ -155,9 +155,12 @@ html, body {
 
 /* ---------- mode toggle ---------- */
 
-.mode-toggle {
+.toggles-right {
   position: fixed; right: 18px; bottom: 14px;
   z-index: 10;
+  display: flex; gap: 26px;
+}
+.mode-toggle {
   font-family: "IBM Plex Mono", monospace; font-size: 10px;
   letter-spacing: 0.2em; text-transform: uppercase;
   color: rgba(28, 35, 51, 0.55); text-decoration: none;
