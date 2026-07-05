@@ -9,12 +9,13 @@ import { makeLinkDeck } from "./links.js";
 const rand = (a, b) => a + Math.random() * (b - a);
 
 // Lane geometry (world). Near lane rides starboard, camera-side.
-const LANE_Z = 8.4; // clear of the 3x hull + plank
-const LANE_JITTER = 1.3;
-// island page: the sea is a disc — drifters enter/leave at its rim rather
-// than the fog edge, so nothing ever floats over the bare parchment
+// island page: the sea is a globe disc — drifters enter/leave at its rim
+// rather than the fog edge, so nothing ever floats over the bare parchment
 const ISLAND_PAGE = document.body.dataset.mode === "island";
-const SPAWN_X = ISLAND_PAGE ? 8.0 : 26;
+const PAGE_SCALE = ISLAND_PAGE ? 0.55 : 0.9; // match the ship's page scale
+const LANE_Z = ISLAND_PAGE ? 4.6 : 8.4; // clear of the hull + plank at page scale
+const LANE_JITTER = 1.3;
+const SPAWN_X = ISLAND_PAGE ? 9.0 : 26;
 const GHOST_Z = -17;
 
 // ---------------------------------------------------------------------------
@@ -284,6 +285,34 @@ function buildIsle() {
   return g;
 }
 
+
+// dolphin pod — three low-poly dolphins porpoising in loose formation; each
+// arcs in/out of the swell on its own phase. The group drifts like any cast
+// member; hops are handled in animateIdle via userData.pod.
+function buildDolphins() {
+  const g = new THREE.Group();
+  const pod = [];
+  for (const [dx, dz, ph] of [[0, 0, 0], [-1.1, 0.5, 1.6], [-2.0, -0.4, 3.1]]) {
+    const d = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.85, 6), mat(COLORS.whale));
+    body.rotation.z = -Math.PI / 2; // nose +x
+    const belly = new THREE.Mesh(new THREE.SphereGeometry(0.13, 6, 5), mat(COLORS.crewShirt));
+    belly.scale.set(1.6, 0.7, 0.8);
+    belly.position.set(-0.08, -0.05, 0);
+    const fin = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.22, 4), mat(COLORS.whale));
+    fin.position.set(-0.05, 0.16, 0);
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, 0.3), mat(COLORS.whale));
+    tail.position.set(-0.5, 0.02, 0);
+    d.add(body, belly, fin, tail);
+    d.position.set(dx, 0, dz);
+    body.castShadow = true;
+    g.add(d);
+    pod.push({ node: d, ph });
+  }
+  g.userData.pod = pod;
+  return g;
+}
+
 // ---------------------------------------------------------------------------
 // Cast — weighted. Ghost is night-only (rerolled by day).
 // ---------------------------------------------------------------------------
@@ -297,6 +326,7 @@ const CAST = {
   whale: { w: 2, build: buildWhale, scale: 1.1, yoff: 0.0, bubble: false },
   ghost: { w: 1, build: buildGhostShip, scale: 1.0, yoff: 0.2, bubble: false },
   isle: { w: 2, build: buildIsle, scale: 1.0, yoff: 0.1, bubble: false, far: true, noBob: true },
+  dolphins: { w: 3, build: buildDolphins, scale: 0.9, yoff: 0.0, bubble: false },
 };
 const CAST_ORDER = Object.keys(CAST);
 const CAST_TOTAL = CAST_ORDER.reduce((s, k) => s + CAST[k].w, 0);
@@ -335,7 +365,7 @@ export class Traffic {
     while (ISLAND_PAGE && (kind === "ghost" || kind === "isle")) kind = pickKind(isNight);
     const spec = CAST[kind];
     const group = spec.build();
-    const scale = spec.scale * rand(0.9, 1.08);
+    const scale = spec.scale * rand(0.9, 1.08) * PAGE_SCALE;
     group.scale.setScalar(scale);
 
     const dir = Math.random() < 0.5 ? 1 : -1; // -x→+x or +x→-x
@@ -528,6 +558,15 @@ export class Traffic {
       }
       case "barrel":
         a.group.rotation.y = (a.dir > 0 ? 0 : Math.PI) + t * 0.35; // slow drift-spin
+        break;
+      case "dolphins":
+        // porpoising: each dolphin rides its own sine — above the surface on
+        // the up-phase, hidden beneath the opaque sea on the down-phase
+        for (let i = 0; i < u.pod.length; i++) {
+          const d = u.pod[i];
+          d.node.position.y = Math.sin(t * 1.5 + d.ph) * 0.85;
+          d.node.rotation.z = -Math.cos(t * 1.5 + d.ph) * 0.55;
+        }
         break;
       default:
         break;

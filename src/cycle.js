@@ -128,7 +128,7 @@ export class Cycle {
     // constructs the ws.weather block with safe defaults so consumers — and this
     // module's own dimming — never read undefined before the first weather tick.
     const w = q.get("weather");
-    this.weatherPin = ["clear", "fog", "rain", "storm"].includes(w) ? w : null;
+    this.weatherPin = ["clear", "rain", "storm"].includes(w) ? w : null;
 
     this.time = 0; // world clock (drives waves + all animation; scrub-safe)
     this.mode = "day";

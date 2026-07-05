@@ -98,6 +98,21 @@ body.night #toggles-left button:hover, body.night #toggles-right a:hover { color
 @keyframes bubble-in { to { transform: translate(-50%, -110%) scale(1); } }
 @keyframes bubble-out { to { transform: translate(-50%, -110%) scale(0); opacity: 0; } }
 
+/* tiny cast barks — smaller, quicker, plain text */
+.bubble.small {
+  padding: 3px 7px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(28, 35, 51, 0.1);
+  animation-duration: 0.3s;
+  font-family: "IBM Plex Mono", monospace;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.1em;
+  font-size: 10px;
+  color: var(--ink);
+  opacity: 0.92;
+}
+.bubble.small::after { width: 7px; height: 7px; bottom: -4px; }
+
 @media (prefers-reduced-motion: reduce) {
   .bubble { animation-duration: 0.01s; }
 }

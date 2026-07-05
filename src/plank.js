@@ -17,6 +17,14 @@ const params = new URLSearchParams(location.search);
 const _p = new THREE.Vector3();
 const _tan = new THREE.Vector3();
 
+const pick = (arr) => arr[(Math.random() * arr.length) | 0];
+// the recurring prisoner knows the drill — lowercase, ≤24 chars, weary. The
+// escort mutters as it marches him out.
+const PRISONER_MUSTER = ["not again…", "third time this week", "must we?", "again? really"];
+const PRISONER_WALK = ["the plank, lovely", "mind the splinters", "i can't swim… ish", "grand view up here"];
+const PRISONER_SWIM = ["the water's fine actually", "see you next week", "freedom, briefly", "told you i'd float"];
+const ESCORT_LINE = ["this way, mate", "step lively", "no dawdlin'", "over ye go"];
+
 const easeOutBack = (x) => {
   const c1 = 1.70158, c3 = c1 + 1;
   return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
@@ -49,7 +57,9 @@ export class Plank {
     this.deckY = ship && ship.deckY != null ? ship.deckY : 1.05;
     this._fallback = { position: new THREE.Vector3(0, this.deckY, 0), facing: 0 };
 
-    this.prisoner = null;
+    this.prisoner = null;     // the SAME drab figure every event — persisted, not rebuilt
+    this.priRec = null;       // his registry record (for routine barks)
+    this.eventCount = 0;
     this.phase = "idle";
     this.phaseTime = 0;
     this.timer = 0;
@@ -81,7 +91,9 @@ export class Plank {
     this.prisoner.armR.rotation.set(-0.4, 0, 0);
   }
 
-  start() {
+  // build the prisoner exactly once; every later event reuses this same figure
+  _ensurePrisoner() {
+    if (this.prisoner) return;
     this.prisoner = makeFigure({
       hat: "none",
       shirt: COLORS.prisoner,
@@ -89,12 +101,42 @@ export class Plank {
       skin: COLORS.skinTan,
       scale: 0.98,
     });
-    this.ship.group.add(this.prisoner.group);
+  }
+
+  // undo the swim's fade + the airborne somersault so he re-emerges clean
+  _resetPrisoner() {
+    const g = this.prisoner.group;
+    g.visible = true;
+    g.rotation.set(0, 0, 0);
+    g.traverse((m) => {
+      if (m.material) {
+        m.material.opacity = 1;
+        m.material.transparent = false;
+        m.material.depthWrite = true;
+      }
+    });
+  }
+
+  start() {
+    this._ensurePrisoner();
+    this._resetPrisoner();
+    this.eventCount++;
+    this.ship.group.add(this.prisoner.group); // back aboard (absent between events)
 
     const hs = this._getSpot("hatch");
     this.prisoner.group.position.set(hs.position.x, this.deckY - 0.45, hs.position.z);
     this.prisoner.group.scale.setScalar(0.001);
     this._setPinned();
+
+    // register him with the shared deck brain for his weary barks (lines null →
+    // never joins the ambient rotation; he only speaks on cue).
+    const reg = this.events && this.events.registry;
+    if (reg) {
+      this.priRec = reg.register("prisoner", 0, this.prisoner, null, null);
+      // he escalates a touch the more often this happens to him
+      const line = this.eventCount >= 3 ? PRISONER_MUSTER[Math.min(this.eventCount, PRISONER_MUSTER.length) - 1] : pick(PRISONER_MUSTER);
+      reg.bark(this.priRec, line, true);
+    }
 
     this.phase = "muster";
     this.phaseTime = 0;
@@ -104,6 +146,7 @@ export class Plank {
     this.events.plank.phase = "muster";
 
     if (this.crew && this.crew.requestEscort) this.crew.requestEscort();
+    if (this.crew && this.crew.escortBark) this.crew.escortBark(pick(ESCORT_LINE));
   }
 
   muster(t) {
@@ -134,6 +177,8 @@ export class Plank {
     this.plankWalk = { curve, length: curve.getLength(), dist: 0 };
     this.phase = "walk";
     this.phaseTime = 0;
+    const reg = this.events && this.events.registry;
+    if (reg && this.priRec) reg.bark(this.priRec, pick(PRISONER_WALK), true);
   }
 
   walk(t, dt) {
@@ -227,6 +272,8 @@ export class Plank {
     this.prisoner.group.rotation.set(-Math.PI / 2, 0, 0); // flat on his back, belly up
     this.phase = "swim";
     this.phaseTime = 0;
+    const reg = this.events && this.events.registry;
+    if (reg && this.priRec) reg.bark(this.priRec, pick(PRISONER_SWIM), true);
   }
 
   swim(t, dt, ws) {
@@ -262,18 +309,15 @@ export class Plank {
   }
 
   _finish() {
+    // he's the SAME fellow next time — detach and hide him, but keep the figure
+    // (and its geometry/materials) alive for the next event.
     const scene = this._scene || this.ship.group.parent;
-    if (scene && this.prisoner) scene.remove(this.prisoner.group);
-    if (this.prisoner) {
-      this.prisoner.group.traverse((m) => {
-        if (m.isMesh) {
-          m.geometry.dispose();
-          const mats = Array.isArray(m.material) ? m.material : [m.material];
-          mats.forEach((x) => x.dispose());
-        }
-      });
-    }
-    this.prisoner = null;
+    if (this.prisoner && this.prisoner.group.parent) this.prisoner.group.parent.remove(this.prisoner.group);
+    else if (scene && this.prisoner) scene.remove(this.prisoner.group);
+    if (this.prisoner) this.prisoner.group.visible = false;
+    const reg = this.events && this.events.registry;
+    if (reg) reg.unregister("prisoner");
+    this.priRec = null;
     this.phase = "idle";
     this.phaseTime = 0;
     this.timer = 0;

@@ -7,10 +7,19 @@
 import * as THREE from "three";
 import { COLORS, mat, unlit } from "./palette.js";
 import { makeFigure, breathe, walkPose, restPose } from "./figures.js";
+import { RANK } from "./crew.js";
 
 const WALK_SPEED = 0.75;   // deck units / second (scrubbed time) — bigger deck, same stroll feel
 const STEP_FREQ = 10;      // walk-pose radians per unit travelled (arc-length gait)
 const SWING = 0.85;        // walkPose amplitude — the swagger
+
+const pick = (arr) => arr[(Math.random() * arr.length) | 0];
+// understated, lowercase, ≤24 chars — the captain's ambient barks + exchange
+// replies, plus the wry send-offs he calls at the splash.
+const CAPTAIN_LINES = ["steady as she goes", "mind the glass", "rum's below",
+  "where's me hat", "the sea remembers", "hold that course", "savvy?", "trim the sheets"];
+const CAPTAIN_REPLIES = ["aye", "so it is", "hah", "mind yerself"];
+const SENDOFF = ["off ye go", "me regards below", "mind the sharks", "safe swim", "the sea's yours"];
 
 // module-scope scratch (zero per-frame allocation in update)
 const _p = new THREE.Vector3();
@@ -170,10 +179,24 @@ export class Captain {
     this._faceY = 0;             // base heading for the current pose (idle scans add to this)
     this._lastTime = null;       // previous ws.time, for scrub-safe deltas
 
+    // shared deck brain — built by crew.js AFTER the captain, so it may not exist
+    // yet; grabbed lazily in update() and used defensively everywhere.
+    this.reg = null;
+    this.rec = null;
+    this._id = "captain";
+    this._prevPlankPhase = "idle";
+
     this.applyActivity(this.current);
   }
 
   get activity() { return this.current; }
+
+  // occupancy claim key: pacing collapses to the shared "pace" corridor, else
+  // the activity's deck spot (so captain + first mate can't double-book helm).
+  claimKey(name) {
+    if (name === "pace") return "pace";
+    return (this.SPOT_FOR && this.SPOT_FOR[name]) || name;
+  }
 
   // { position: Vector3 (local), facing: radians }; never mutate the ship's own
   // vector, and fall back to deck-centre if a spot is missing. `name` may be an
@@ -195,6 +218,7 @@ export class Captain {
     f.group.position.copy(spot.position);
     f.group.position.y = (typeof spot.position.y === "number") ? spot.position.y : this.deckY;
     f.group.rotation.set(0, faceY, 0);
+    if (this.reg) this.reg.claim(this.claimKey(name), this._id);
 
     // neutral base — per-frame idle layers on top
     restPose(f);
@@ -306,6 +330,7 @@ export class Captain {
     const pool = [];
     for (const a of this.activities) {
       if (a === this.current) continue;
+      if (this.reg && this.reg.taken(this.claimKey(a), this._id)) continue; // spot busy
       let w = 1;
       if (night && (a === "nap" || a === "rum" || a === "rail" || a === "fishing")) w = 3;
       pool.push([a, w]);
@@ -399,11 +424,13 @@ export class Captain {
   beginActivityWalk(name) {
     const spot = this.spotFor(name);
     const facing = name === "flourish" ? 0 : (name === "nap" ? 0 : spot.facing);
+    if (this.reg) this.reg.claim(this.claimKey(name), this._id); // reserve the destination
     this.startWalkTo(spot.position, facing, { activity: name });
   }
 
   // walk to a supervisory spot just inboard of the plank base, facing the tip
   beginPlankWalk() {
+    if (this.reg) this.reg.release(this._id); // leaves his post; frees the spot
     const base = this.spotFor("plankBase");
     const tip = this.spotFor("plankTip");
     let ix = -base.position.x, iz = -base.position.z;
@@ -465,8 +492,36 @@ export class Captain {
     const t = ws.time;
     const f = this.fig;
 
+    // ---- pick up the shared deck brain once crew.js has published it ----
+    if (!this.reg && this.events && this.events.registry) {
+      this.reg = this.events.registry;
+      this.rec = this.reg.register(this._id, RANK.captain, this.fig, CAPTAIN_LINES, CAPTAIN_REPLIES);
+      // if a hand already holds his opening spot, drift to a free activity
+      if (!this.reg.claim(this.claimKey(this.current), this._id) && !this.plankMode) {
+        const next = this.pickNext(ws);
+        if (this.reduced) { this.current = next; this.applyActivity(next); this.activityTime = 0; }
+        else this.beginActivityWalk(next);
+      }
+    }
+    // publish local pose/state (one frame late is fine for bubbles + proximity)
+    if (this.rec) {
+      this.rec.lx = f.group.position.x;
+      this.rec.lz = f.group.position.z;
+      this.rec.facing = f.group.rotation.y;
+      this.rec.walking = this.phase === "walking";
+      this.rec.settled = this.phase === "settled" && !this.plankMode;
+    }
+
     // ---- plank interrupt (takes priority over the routine) ----
     const p = this.events && this.events.plank;
+
+    // a wry send-off the moment the prisoner leaves the plank
+    if (this.reg && this.rec) {
+      const ph = p ? p.phase : "idle";
+      if (ph === "splash" && this._prevPlankPhase !== "splash") this.reg.bark(this.rec, pick(SENDOFF), true);
+      this._prevPlankPhase = ph;
+    }
+
     const plankBusy = !!(p && p.active && p.phase !== "idle");
     if (plankBusy && !this.plankMode) {
       this.plankMode = true;

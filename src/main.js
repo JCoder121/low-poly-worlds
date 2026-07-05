@@ -27,8 +27,8 @@ scene.background = new THREE.Color(COLORS.parchment);
 const FOG_BASE = pageMode === "expanse" ? { near: 31, far: 50 } : { near: 33, far: 56 };
 scene.fog = new THREE.Fog(COLORS.parchment, FOG_BASE.near, FOG_BASE.far);
 
-// island page = the fishbowl on a shelf: zoomed out for bowl + sky headroom
-const FRUSTUM = pageMode === "island" ? 16 : 13.8;
+// island page = the snow globe on a shelf: frame the whole glass sphere
+const FRUSTUM = pageMode === "island" ? 14.5 : 13.8;
 const camera = new THREE.OrthographicCamera();
 const CAM_BASE = new THREE.Vector3(15, 12.5, 15);
 const CAM_TARGET = new THREE.Vector3(0, 2.0, 0);
@@ -83,11 +83,12 @@ scene.add(fill);
 
 // ---------- world modules ----------
 const cycle = new Cycle();
-const events = { plank: { active: false, phase: "idle" } };
+const events = { plank: { active: false, phase: "idle" }, camera }; // cast projects bubbles via events.camera
 
 const weather = new Weather(scene);
 const water = new Water(scene, pageMode);
 const ship = new Ship(scene);
+ship.setScale(pageMode === "island" ? 0.55 : 0.9); // globe miniature / 10% trim
 const captain = new Captain(ship, events);
 const crew = new Crew(ship, events);
 const plank = new Plank(ship, captain, crew, water, events);
@@ -138,7 +139,7 @@ const HOURS = [
   [0.06, "dawn"], [0.18, "morning"], [0.33, "noon"], [0.48, "afternoon"],
   [0.62, "golden hour"], [0.72, "dusk"], [0.9, "past midnight"], [1.01, "before dawn"],
 ];
-const WEATHER_LINE = { clear: "", fog: ", fog on the water", rain: ", rain coming down", storm: ", storm overhead" };
+const WEATHER_LINE = { clear: "", rain: ", rain coming down", storm: ", storm overhead" };
 let skylineTimer = 0;
 function updateSkyline(ws) {
   const band = HOURS.find(([end]) => ws.dayPos < end);

@@ -30,11 +30,30 @@ function strut(ax, ay, az, bx, by, bz, r, color, seg = 5) {
   return m;
 }
 
+// A small pyramid stack of cannonballs (4 base + 1 crown) at deck level.
+function ballStack(x, z) {
+  const g = new THREE.Group();
+  const r = 0.12, d = 0.13;
+  for (const [bx, bz] of [[-d, -d], [d, -d], [-d, d], [d, d]]) {
+    const b = new THREE.Mesh(new THREE.SphereGeometry(r, 7, 5), mat(COLORS.cannon));
+    b.position.set(bx, r, bz);
+    b.castShadow = true;
+    g.add(b);
+  }
+  const top = new THREE.Mesh(new THREE.SphereGeometry(r, 7, 5), mat(COLORS.cannon));
+  top.position.set(0, r * 1.95, 0);
+  top.castShadow = true;
+  g.add(top);
+  g.position.set(x, DECK_Y, z);
+  return g;
+}
+
 export class Ship {
   constructor(scene) {
     this.group = new THREE.Group();
     scene.add(this.group);
 
+    this.scale = 1; // page scale (setScale); buoyancy offsets scale with it
     this._rotX = 0; // damped roll / pitch state
     this._rotZ = 0;
     this.sails = []; // { mesh, base:Float32Array, phase }
@@ -52,6 +71,7 @@ export class Ship {
     this._buildDeckProps();
     this._buildBell();
     this._buildPlank();
+    this._buildDetails();
 
     // Named deck stations (LOCAL coords). y = deckY unless noted. facing is a
     // world-plane bearing: 0 = +x (bow), +π/2 = +z (starboard / camera side).
@@ -93,6 +113,14 @@ export class Ship {
       { x: 1.05, z: -1.86, r: 0.84 }, // map barrel
       { x: -1.2, z: 1.86, r: 0.9 }, // second barrel
       { x: -2.3, z: 1.0, r: 0.45 }, // ship's bell gallows
+      // detail-pass props that sit on the walkable deck
+      { x: 5.0, z: -2.6, r: 0.38 }, // cannonball stack (fore port)
+      { x: 0.3, z: -2.6, r: 0.38 }, // cannonball stack (mid port)
+      { x: -4.2, z: -2.5, r: 0.38 }, // cannonball stack (aft port)
+      { x: 5.6, z: 1.0, r: 0.38 }, // cannonball stack (bow starboard)
+      { x: 5.2, z: 1.9, r: 0.4 }, // coiled rope (fore starboard)
+      { x: -4.6, z: -2.4, r: 0.4 }, // coiled rope (aft port)
+      { x: -0.6, z: 1.75, r: 0.6 }, // crate beside the hatch
     ];
   }
 
@@ -251,7 +279,9 @@ export class Ship {
         mat(COLORS.sail, { side: THREE.DoubleSide, emissive: COLORS.sail, emissiveIntensity: 0.16 })
       );
       sail.rotation.y = Math.PI / 2; // width runs across the ship (z); normal → fore/aft (x)
-      sail.position.set(m.x, m.sailY, 0);
+      // hang the canvas +0.4 forward of the mast axis so the swaying sail never
+      // rhythmically occludes the mast cylinder behind it
+      sail.position.set(m.x + 0.4, m.sailY, 0);
       sail.castShadow = true;
       this.group.add(sail);
       this.sails.push({ mesh: sail, base: Float32Array.from(geo.attributes.position.array), phase: m.phase });
@@ -371,37 +401,136 @@ export class Ship {
     this.group.add(lash);
   }
 
+  // ---- finer detail pass: seams, strakes, rails, ground clutter, fittings ----
+  // All code-built primitives, palette colors only. castShadow only on the
+  // chunky pieces — seams/strakes/trim skip it to spare the shadow map.
+  _buildDetails() {
+    // deck plank seams: ~14 thin caulk lines running fore-aft, flush on deck
+    for (let i = 0; i < 14; i++) {
+      const z = -2.9 + (i / 13) * 5.8;
+      const seam = new THREE.Mesh(new THREE.BoxGeometry(13.0, 0.04, 0.05), mat(COLORS.hullDark));
+      seam.position.set(-0.15, DECK_Y + 0.02, z);
+      this.group.add(seam);
+    }
+
+    // hull strakes: two long thin hullDark bands down each side
+    for (const zside of [-3.32, 3.32]) {
+      for (const hy of [1.35, 2.4]) {
+        const strake = new THREE.Mesh(new THREE.BoxGeometry(12.0, 0.16, 0.08), mat(COLORS.hullDark));
+        strake.position.set(-1.5, hy, zside);
+        this.group.add(strake);
+      }
+    }
+
+    // gunwale cap rail capping each bulwark
+    for (const zside of [-3.24, 3.24]) {
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(12.7, 0.14, 0.34), mat(COLORS.mast));
+      cap.position.set(-0.3, DECK_Y + 0.68, zside);
+      cap.castShadow = true;
+      this.group.add(cap);
+    }
+
+    // cannonball pyramid stacks (positions mirrored in keepouts)
+    for (const [x, z] of [[5.0, -2.6], [0.3, -2.6], [-4.2, -2.5], [5.6, 1.0]]) {
+      this.group.add(ballStack(x, z));
+    }
+
+    // stocked anchor hanging at the port bow (-z), flat against the hull side
+    const anc = new THREE.Group();
+    const shank = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.9, 6), mat(COLORS.hullDark));
+    shank.position.y = 0.05;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.035, 5, 10), mat(COLORS.brass));
+    ring.position.y = 1.05; // torus lies in x-y plane → faces outboard
+    const stock = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.85, 5), mat(COLORS.hullDark));
+    stock.rotation.z = Math.PI / 2; // crossbar along x
+    stock.position.y = 0.72;
+    anc.add(shank, ring, stock);
+    for (const dir of [-1, 1]) {
+      anc.add(strut(0, -0.85, 0, dir * 0.42, -0.5, 0, 0.055, COLORS.hullDark, 5)); // fluke arm
+      const fluke = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.32, 5), mat(COLORS.hullDark));
+      fluke.position.set(dir * 0.48, -0.42, 0);
+      fluke.rotation.z = dir * -Math.PI / 2.3; // point outward and up
+      fluke.castShadow = true;
+      anc.add(fluke);
+    }
+    anc.traverse((o) => (o.castShadow = true));
+    anc.position.set(6.8, DECK_Y - 1.2, -3.25);
+    this.group.add(anc);
+
+    // rudder blade at the stern, hung below the waterline band
+    const rudder = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.5, 1.3), mat(COLORS.hullDark));
+    rudder.position.set(-9.15, -0.25, 0);
+    rudder.castShadow = true;
+    this.group.add(rudder);
+
+    // thin brass trim band under the stern windows (carved-look accent)
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 4.6), mat(COLORS.brass));
+    trim.position.set(-8.99, DECK_Y + 0.62, 0);
+    this.group.add(trim);
+
+    // a couple more coiled ropes at rest on the deck
+    for (const [x, z] of [[5.2, 1.9], [-4.6, -2.4]]) {
+      const c = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.09, 5, 12), mat(COLORS.rope));
+      c.rotation.x = Math.PI / 2;
+      c.position.set(x, DECK_Y + 0.09, z);
+      c.castShadow = c.receiveShadow = true;
+      this.group.add(c);
+    }
+
+    // a crate beside the hatch
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.7, 0.8), mat(COLORS.barrel));
+    crate.position.set(-0.6, DECK_Y + 0.35, 1.75);
+    crate.castShadow = crate.receiveShadow = true;
+    const crateTop = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.08, 0.84), mat(COLORS.hullDark));
+    crateTop.position.set(-0.6, DECK_Y + 0.74, 1.75);
+    crateTop.castShadow = true;
+    this.group.add(crate, crateTop);
+  }
+
+  // ---- page scale: main.js calls this once after construction (v3) ----
+  // Scales the whole group (children/figures inherit), and scales the buoyancy
+  // sample offsets + draft so the enlarged/shrunk hull still floats correctly.
+  setScale(s) {
+    this.scale = s;
+    this.group.scale.setScalar(s);
+  }
+
   update(ws) {
     const t = ws.time;
     const amp = ws.reduced ? 0.5 : 1;
 
     // buoyancy: sample the shared wave field at the four hull corners (world).
     // The wider ±8.5 / ±3.0 base spans several swell wavelengths, so fore-aft
-    // and port-starboard deltas stay small — a big brig turns lazily.
+    // and port-starboard deltas stay small — a big brig turns lazily. Offsets
+    // (and the slope divisors + draft) scale with the group so the scaled hull
+    // samples its true corners and floats at the same relative depth.
+    const s = this.scale;
+    const dxFA = 8.5 * s, dzPS = 3.0 * s;
     const gx = this.group.position.x, gz = this.group.position.z;
-    const hFS = waveHeight(gx + 8.5, gz + 3.0, t); // fore-starboard
-    const hFP = waveHeight(gx + 8.5, gz - 3.0, t); // fore-port
-    const hAS = waveHeight(gx - 8.5, gz + 3.0, t); // aft-starboard
-    const hAP = waveHeight(gx - 8.5, gz - 3.0, t); // aft-port
+    const hFS = waveHeight(gx + dxFA, gz + dzPS, t); // fore-starboard
+    const hFP = waveHeight(gx + dxFA, gz - dzPS, t); // fore-port
+    const hAS = waveHeight(gx - dxFA, gz + dzPS, t); // aft-starboard
+    const hAP = waveHeight(gx - dxFA, gz - dzPS, t); // aft-port
     const mean = (hFS + hFP + hAS + hAP) * 0.25;
     const hFwd = (hFS + hFP) * 0.5, hAft = (hAS + hAP) * 0.5;
     const hStar = (hFS + hAS) * 0.5, hPort = (hFP + hAP) * 0.5;
 
     // pitch about +z (bow up when fore is higher); roll about +x (starboard up
-    // needs a negative x-rotation). Divisors are the full sample spans (17 & 6)
-    // so these read as sea-surface slopes; damped toward target (lerp 0.06).
-    const targetZ = ((hFwd - hAft) / 17.0) * amp;
-    const targetX = (-(hStar - hPort) / 6.0) * 0.85 * amp;
+    // needs a negative x-rotation). Divisors are the full sample spans (17 & 6,
+    // scaled) so these read as sea-surface slopes; damped toward target (0.06).
+    const targetZ = ((hFwd - hAft) / (17.0 * s)) * amp;
+    const targetX = (-(hStar - hPort) / (6.0 * s)) * 0.85 * amp;
     this._rotZ += (targetZ - this._rotZ) * 0.06;
     this._rotX += (targetX - this._rotX) * 0.06;
 
-    this.group.position.y = mean + BOB_OFFSET;
+    this.group.position.y = mean + BOB_OFFSET * s;
     this.group.rotation.z = this._rotZ;
     this.group.rotation.x = this._rotX;
     this.group.rotation.y = Math.sin(t * 0.05) * 0.024 * amp; // slow heading drift (~40% calmer)
 
-    // sail billow (CPU vertex offset along each plane's local normal / z)
-    const sAmp = 0.18 * amp;
+    // sail billow (CPU vertex offset along each plane's local normal / z);
+    // amplitude reduced ~60% from 0.18 so the canvas breathes without slapping
+    const sAmp = 0.072 * amp;
     for (const s of this.sails) {
       const pos = s.mesh.geometry.attributes.position;
       const base = s.base;

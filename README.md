@@ -76,3 +76,19 @@ Scrub params & verification recipe: `.claude/skills/verify/SKILL.md`.
   (~90s, fog-hazed, never bobs).
 - Physical-light-unit lesson repeated: the 3× cabin hid the stern lantern —
   raised above the roofline at intensity ≈16.
+
+## v3 — the snow globe, the cast, the quiet sky
+
+- **Island = reverse snow globe**: glass hemisphere BELOW the waterline only
+  (flattened pole, equator ring), sea disc r11, world at 0.55× inside.
+- **Expanse sea fills every corner** (96-unit grid, cell 0.65); ship 0.9×.
+- **No sun/moon discs** — the discs felt awkward; lighting alone tells time.
+  Sky keeps stars/shooting stars and gains rainbows (after daytime rain),
+  meteor showers, gull flocks; the water gains a porpoising dolphin pod.
+- **Fog weather removed** (rain/storm remain; distance fog stays aesthetic).
+- **A real cast**: captain / first mate / lookout / cook / deckhand + the
+  recurring prisoner ("not again…"). Tiny bark bubbles, deck-spot occupancy
+  registry, junior-yields sidesteps, paired exchanges when two stop close.
+- **Rig fix**: sails 60% calmer and offset forward of the masts.
+- **Ship detail pass**: plank seams, hull strakes, cannonball pyramids,
+  anchor, rudder, stern trim, rope coils, crate.

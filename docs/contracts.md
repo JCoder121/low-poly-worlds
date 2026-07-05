@@ -274,3 +274,101 @@ crests, dusk gold, night slate — sky-mirror stays).
 
 Rules unchanged: palette-only colors, ws.time animation, zero per-frame
 allocs, `node --check` your files, edit ONLY your files.
+
+---
+
+# v3 addendum — reverse snow globe, cast roles, disc-less sky, cleaner rig
+
+## Global: page scale
+
+main.js calls `ship.setScale(s)` after construction: s = 0.9 (expanse) /
+0.55 (island). ship.js OWNS the implementation: group.scale.setScalar(s) AND
+scales its buoyancy sample offsets + draft by s (children — figures included —
+inherit the group scale; that is intended for v3). plank.js must copy the
+prisoner's world scale when reparenting to scene. Traffic spawn scale is
+multiplied by the page factor (main-session work, not yours).
+
+## water.js [agent bowl] — island → REVERSE SNOW GLOBE + expanse extent
+
+- Island: DELETE the lathe wall/rim above the waterline. New form: a glass
+  HEMISPHERE below only — lathe/sphere half (r ≈ 11.6) from the waterline
+  equator down to the bottom pole, same glass material recipe; a thin
+  glass equator ring (torus r 11.6, tube 0.06, opacity 0.3) right at y≈0.05
+  marks the waterline edge. Sea disc: grid-clip radius 11.0. Inner dark
+  volume: replace the straight cylinder with a hemisphere-ish inner shell or
+  cone (opaque, deep tint) tucked inside the glass so the water reads deep;
+  cap disc stays just under the surface (r 11.1). Soft shadow blob r 12.5,
+  fatter (the globe SITS on the parchment — slight flatten illusion is fine).
+  Nothing rises above the waterline. Splash/ring pools unchanged.
+- Expanse: the sea must fill EVERY corner of any viewport at aspect ≤ 2.4
+  under frustum half-height 13.8 and camera (15,12.5,15): grow EXPANSE to 96
+  and CELL to 0.65 (keeps vertex count sane). Verify corners covered by
+  projecting: half-width at 2.4 aspect ≈ 33 world units — a 96-square centred
+  at origin covers it.
+
+## ship.js [agent ship-detail] — detail pass + rig fix + setScale
+
+- `setScale(s)` per Global above (default 1 if never called).
+- Sails: billow amplitude REDUCED ~60% and the sail planes OFFSET +0.4 local
+  x forward of their mast axis so the mast cylinder is never hidden by the
+  swaying canvas. Masts stay where they are.
+- Finer polygon detail, all code-built from palette (no textures — skill
+  rule; kenney/poly.pizza NOT needed here): deck plank seams (thin darker
+  strips flush on the deck, ~14 across), hull strakes (2-3 long thin bands
+  of hullDark along each side), gunwale cap rail, 3-4 cannonball pyramid
+  stacks, a stocked anchor hanging at the port bow (shank+ring+flukes), a
+  rudder blade at the stern below the waterline band, simple carved stern
+  trim (thin brass band under the cabin windows), a coiled-rope torus or
+  two, a crate beside the hatch. castShadow on the chunky ones only (skip
+  seams/strakes — shadow map cost).
+
+## captain.js + crew.js + plank.js [agent cast] — roles, banter, manners
+
+- FIVE distinct roles: captain (existing activity set), first mate (map,
+  compass, wheel-relief, pacing), lookout (crow's nest, bow watch, gullRail),
+  cook (new stew-pot prop near the hatch — small pot + ladle gesture; also
+  barrel checks), deckhand (swab/rope/cannon/coil). Crew figures get one
+  role each (distinct shirt/stripe/bandana colorways from palette); captain
+  is the 5th role. The prisoner is a RECURRING 6th character: the SAME drab
+  figure every plank event (persist him; between events he's absent), lines
+  acknowledge the routine ("not again", "the water's fine actually").
+- Tiny speech bubbles: DOM div.bubble.small into #bubbles (CSS exists —
+  main session adds it): plain text, NO link, project from the figure's
+  head (+0.5 above), ~2.6s life, springy in/out. Each role gets 6-10 short
+  lines (≤ 24 chars, lowercase, pirate-flavored but understated). Global
+  rate limit: one ambient bark per 9-15s across the whole cast; plank
+  phases may add theirs (escort "this way, mate", prisoner protest, captain
+  send-off at the splash).
+- Natural interaction, NO overlap: a shared deck-occupancy registry (own it
+  in crew.js, export; captain consumes): figures CLAIM their target spot —
+  never two on one spot; while walking, if two figures come within 0.8u,
+  the junior (deckhand < cook < lookout < mate < captain) pauses + sidesteps
+  (existing sidestep pattern); when they stop within 1.6u of each other
+  facing, ~30% chance of a paired exchange (A barks, 1.2s later B replies
+  from its role's reply lines, both face each other for the beat, then
+  resume).
+
+## sky.js + weather.js + cycle.js [agent skyweather]
+
+- sky.js: REMOVE the sun/moon discs, phase overlay, and halo on BOTH pages —
+  lighting alone tells the time now (user call: discs felt awkward). Keep
+  stars (both pages) + shooting star. ADD rare events:
+  rainbow — when ws.weather.kind transitions rain→clear during day (track
+  prev kind internally), a soft 5-band arc (thin torus segments or arched
+  planes, low saturation palette-adjacent tints, opacity ≤ 0.35) spans the
+  haze band ~25s, fade in/out; expanse camera-band + island world-arc.
+  meteor shower — clear night, every 4-8 min chance: 5-7 shooting stars
+  over ~12s reusing the pooled streak.
+  gull flock — day, every 3-6 min: 5 tiny two-triangle gulls flap across
+  the upper band in a loose V (camera-band on expanse, over the globe on
+  island).
+- weather.js: REMOVE the fog kind + mist plane entirely (machine = clear ↔
+  rain → storm; rain 14%, storm via rain as before; redistribute fog's
+  weight to clear). fogFactor: clear 1.0, rain 0.8, storm 0.7 (rain still
+  thickens the air a little — that's atmosphere, not a fog event). Scene
+  distance-fog itself STAYS.
+- cycle.js: drop 'fog' from the ?weather= pin list; nothing else.
+
+Rules unchanged (palette, ws.time, no per-frame allocs, own files only,
+node --check). main session owns: main.js, traffic.js (dolphin pod rare
+cast + island lane/scale numbers), style.css (.bubble.small), html, docs.

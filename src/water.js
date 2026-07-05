@@ -58,10 +58,10 @@ void main() {
 }`;
 
 // ---- module-scope constants + scratch (zero per-frame allocation) -----------
-const CELL = 0.55; // grid cell — chunky vs the λ7 swell is where facets live
-const EXPANSE = 56; // rect side (fog eats the far edge)
-const BOWL_R = 13.2; // sea-surface disc radius inside the fishbowl
-const GLASS_TINT = 0xcfe0e4; // cool glass hint for the bowl + rim (local, approved)
+const CELL = 0.65; // grid cell — chunky vs the λ7 swell is where facets live
+const EXPANSE = 96; // rect side, big enough to fill every corner (aspect ≤2.4)
+const BOWL_R = 11.0; // sea-surface disc radius inside the snow globe
+const GLASS_TINT = 0xcfe0e4; // cool glass hint for the globe + equator (local, approved)
 const SHARD_G = 2.6; // ballistic gravity for splash shards
 const _shardGeo = new THREE.TetrahedronGeometry(0.055);
 const _ringGeo = new THREE.RingGeometry(0.82, 1.0, 24);
@@ -121,7 +121,7 @@ export class Water {
       surfGeo.computeVertexNormals();
       this._buildBowl();
     } else {
-      const seg = Math.round(EXPANSE / CELL); // ~102 → cell ≈ 0.55
+      const seg = Math.round(EXPANSE / CELL); // ~148 → cell ≈ 0.65
       surfGeo = new THREE.PlaneGeometry(EXPANSE, EXPANSE, seg, seg);
       surfGeo.rotateX(-Math.PI / 2);
       surfGeo = surfGeo.toNonIndexed();
@@ -159,56 +159,52 @@ export class Water {
     }
   }
 
-  // An OPEN GLASS FISHBOWL holding the disc of sea. A dark inner wall + cap
-  // make the water read deep; a translucent lathe shell + a brighter rim torus
-  // give the glass. Only built for island mode.
+  // A REVERSE SNOW GLOBE: the disc of sea capped with a glass HEMISPHERE that
+  // sits ENTIRELY BELOW the waterline — nothing rises above y=0. A dark inner
+  // shell makes the water read deep; the glass dome curving under it + a thin
+  // equator torus at the waterline read as the globe. Only built for island.
   _buildBowl() {
-    // --- dark inner wall + cap so the sea reads as deep water, not paper ----
-    // opaque cylinder just inside the glass; DoubleSide so the far inner face
-    // (the one we look at through the front glass) is lit.
-    const wallGeo = new THREE.CylinderGeometry(13.4, 13.4, 5.6, 48, 1, true);
-    const wall = new THREE.Mesh(
-      wallGeo,
+    const FLATTEN = 0.8; // squash y so the globe sits low + fat on the parchment
+    const R = 11.6; // glass hemisphere radius at the equator (waterline)
+
+    // --- dark inner shell so the sea reads as deep water, not paper ---------
+    // opaque hemisphere just inside the glass, DoubleSide so the far inner face
+    // (the one we look at through the near glass) is lit; tucks under the sea.
+    const innerGeo = new THREE.SphereGeometry(
+      11.3, 40, 20, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2
+    );
+    const inner = new THREE.Mesh(
+      innerGeo,
       mat(COLORS.troughNight, { side: THREE.DoubleSide })
     );
-    wall.position.y = -3.0; // spans y -0.2 → -5.8
-    wall.receiveShadow = true;
-    this.group.add(wall);
+    inner.scale.y = FLATTEN;
+    inner.receiveShadow = true;
+    this.group.add(inner);
 
-    // solid cap just beneath the wave surface: the stepped rim inevitably
-    // leaves slivers between surface and wall — they must read as deep water,
-    // never as the inside of the bowl showing through
-    const capGeo = new THREE.CircleGeometry(13.3, 48);
+    // solid cap just beneath the wave surface: the stepped grid rim leaves
+    // slivers between surface and inner shell — they must read as deep water,
+    // never as the inside of the globe showing through
+    const capGeo = new THREE.CircleGeometry(11.1, 48);
     capGeo.rotateX(-Math.PI / 2);
     const cap = new THREE.Mesh(capGeo, mat(COLORS.troughNight));
     cap.position.y = -0.23;
     this.group.add(cap);
 
-    // soft round contact shadow on the paper beneath the bowl
-    const blobGeo = new THREE.CircleGeometry(15.5, 48);
+    // soft round contact shadow — fatter, since the globe rests on the paper
+    const blobGeo = new THREE.CircleGeometry(12.5, 48);
     blobGeo.rotateX(-Math.PI / 2);
     const blob = new THREE.Mesh(
       blobGeo,
       unlit(0x6b5c3f, { transparent: true, opacity: 0.08, depthWrite: false })
     );
-    blob.position.y = -6.35; // just under the rounded bottom (y -6.2)
+    blob.position.y = -R * FLATTEN - 0.05; // just under the flattened pole
     this.group.add(blob);
 
-    // --- the glass shell: lathe profile, rounded bottom → wall → rim lip -----
-    // profile bottom→top (radius, y): rounded base, wall curving up+out through
-    // (13.8, 0), rim lip at (14.2, 4.6) with a small outward curl.
-    const profile = [
-      new THREE.Vector2(4.5, -6.2),
-      new THREE.Vector2(7.2, -5.4),
-      new THREE.Vector2(9.7, -4.1),
-      new THREE.Vector2(11.7, -2.3),
-      new THREE.Vector2(13.1, -0.5),
-      new THREE.Vector2(13.8, 0.0),
-      new THREE.Vector2(14.05, 2.3),
-      new THREE.Vector2(14.2, 4.6),
-      new THREE.Vector2(14.5, 4.85), // outward lip curl
-    ];
-    const glassGeo = new THREE.LatheGeometry(profile, 48);
+    // --- the glass hemisphere: lower half of a sphere, equator at y≈0 --------
+    // thetaStart π/2 (equator) → thetaLength π/2 (south pole): a bowl-down dome.
+    const glassGeo = new THREE.SphereGeometry(
+      R, 48, 24, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2
+    );
     const glass = new THREE.Mesh(
       glassGeo,
       mat(GLASS_TINT, {
@@ -219,25 +215,26 @@ export class Water {
         depthWrite: false,
       })
     );
-    // depthWrite:false → draw the glass LAST so sea/wall/ship (renderOrder 0)
+    glass.scale.y = FLATTEN;
+    // depthWrite:false → draw the glass LAST so sea/inner/ship (renderOrder 0)
     // sort correctly behind the near pane.
     glass.renderOrder = 50;
     this.group.add(glass);
 
-    // brighter thin rim torus at the lip so the bowl edge reads
-    const rimGeo = new THREE.TorusGeometry(14.28, 0.13, 8, 48);
+    // thin glass equator torus marking the waterline edge of the globe
+    const rimGeo = new THREE.TorusGeometry(R, 0.06, 8, 48);
     rimGeo.rotateX(-Math.PI / 2);
     const rim = new THREE.Mesh(
       rimGeo,
       mat(GLASS_TINT, {
         roughness: 0.15,
         transparent: true,
-        opacity: 0.35,
+        opacity: 0.3,
         side: THREE.DoubleSide,
         depthWrite: false,
       })
     );
-    rim.position.y = 4.6;
+    rim.position.y = 0.05;
     rim.renderOrder = 51;
     this.group.add(rim);
   }

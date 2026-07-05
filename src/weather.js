@@ -1,7 +1,9 @@
-// Weather: a slow state machine over clear / fog / rain / storm that writes its
-// numbers into ws.weather and owns the rain streaks, low mist plane, and storm
-// flash spikes. Cycle publishes ws.weather (and applies the light dimming from
-// these numbers); this module only drives the numbers + its own meshes.
+// Weather: a slow state machine over clear / rain / storm that writes its
+// numbers into ws.weather and owns the rain streaks and storm flash spikes.
+// Cycle publishes ws.weather (and applies the light dimming from these numbers);
+// this module only drives the numbers + its own meshes. (Fog was removed in v3:
+// scene distance-fog stays, but there is no fog KIND or mist plane — rain just
+// thickens the air a touch, which is atmosphere, not an event.)
 //
 // Ordering (main.js): cycle.update(dt) runs first (dims light from LAST frame's
 // weather numbers), THEN weather.update(ws, dt) advances the machine + visuals.
@@ -12,26 +14,27 @@ const smooth = (x) => x * x * (3 - 2 * x);
 const rand = (a, b) => a + Math.random() * (b - a);
 const lerp = THREE.MathUtils.lerp;
 
-// Target numbers per kind. fogFactor: main.js multiplies fog distances (1 clear
-// → 0.45 heavy). dim: light multiplier applied by cycle (1 → 0.75). rain: 0..1
-// streak density + sound. mist: opacity of the low haze plane.
+// Target numbers per kind. fogFactor: main.js multiplies fog distances (rain
+// thickens the air a little — atmosphere, not a fog event). dim: light
+// multiplier applied by cycle. rain: 0..1 streak density + sound.
 const PROFILES = {
-  clear: { fogFactor: 1.0, dim: 1.0, rain: 0.0, mist: 0.0 },
-  fog: { fogFactor: 0.45, dim: 0.85, rain: 0.0, mist: 0.12 },
-  rain: { fogFactor: 0.7, dim: 0.82, rain: 0.8, mist: 0.05 },
-  storm: { fogFactor: 0.6, dim: 0.75, rain: 1.0, mist: 0.05 },
+  clear: { fogFactor: 1.0, dim: 1.0, rain: 0.0 },
+  rain: { fogFactor: 0.8, dim: 0.82, rain: 0.8 },
+  storm: { fogFactor: 0.7, dim: 0.75, rain: 1.0 },
 };
 
-// dwell seconds per kind — clear lingers longest (≈60% occupancy), storm passes
-const DWELL = { clear: [60, 150], fog: [40, 90], rain: [30, 70], storm: [18, 45] };
+// dwell seconds per kind — clear lingers longest (fog's old weight folded in),
+// storm passes quickly
+const DWELL = { clear: [60, 150], rain: [30, 70], storm: [18, 45] };
 
-// Markov step. clear ↔ fog ↔ rain, and storm reachable ONLY from rain.
+// Markov step. clear ↔ rain, and storm reachable ONLY from rain. Fog's old
+// probability is folded into clear: clear mostly re-dwells (a self-transition
+// just resets its timer, no visual change), keeping ~85% clear occupancy.
 function nextKind(cur) {
   const r = Math.random();
   switch (cur) {
-    case "clear": return r < 0.62 ? "fog" : "rain";
-    case "fog": return r < 0.68 ? "clear" : "rain";
-    case "rain": return r < 0.45 ? "clear" : r < 0.70 ? "fog" : "storm";
+    case "clear": return r < 0.80 ? "clear" : "rain";
+    case "rain": return r < 0.52 ? "clear" : r < 0.84 ? "rain" : "storm";
     case "storm": return r < 0.55 ? "rain" : "clear";
   }
   return "clear";
@@ -41,7 +44,7 @@ export class Weather {
   constructor(scene) {
     const q = new URLSearchParams(location.search);
     const w = q.get("weather");
-    this.pin = ["clear", "fog", "rain", "storm"].includes(w) ? w : null;
+    this.pin = ["clear", "rain", "storm"].includes(w) ? w : null;
     this.island = typeof document !== "undefined" && document.body
       && document.body.dataset.mode === "island";
     this.reduced = typeof window !== "undefined" && window.matchMedia
@@ -57,9 +60,9 @@ export class Weather {
     this.flashT = rand(6, 16);
 
     // fixed scratch number-bags (no per-frame allocation)
-    this._cur = { fogFactor: 0, dim: 1, rain: 0, mist: 0 };
-    this._from = { fogFactor: 0, dim: 1, rain: 0, mist: 0 };
-    this._to = { fogFactor: 0, dim: 1, rain: 0, mist: 0 };
+    this._cur = { fogFactor: 0, dim: 1, rain: 0 };
+    this._from = { fogFactor: 0, dim: 1, rain: 0 };
+    this._to = { fogFactor: 0, dim: 1, rain: 0 };
     copyProfile(this._cur, PROFILES[this.kind]);
 
     this.dummy = new THREE.Object3D();
@@ -80,15 +83,6 @@ export class Weather {
       this.drops.push(d);
     }
     scene.add(this.rain);
-
-    // ---- fog: a low pale haze plane over the water (disc on the island bowl) ----
-    const mgeo = this.island ? new THREE.CircleGeometry(13, 32) : new THREE.PlaneGeometry(62, 62);
-    mgeo.rotateX(-Math.PI / 2);
-    const mmat = unlit(COLORS.parchment, { transparent: true, opacity: 0, depthWrite: false, fog: false });
-    this.mist = new THREE.Mesh(mgeo, mmat);
-    this.mist.position.y = 0.35;
-    this.mist.renderOrder = 2;
-    scene.add(this.mist);
   }
 
   // respawn a drop at the top of the volume; on the island page, inside the bowl
@@ -117,7 +111,6 @@ export class Weather {
     wx.flash = this.flash;
 
     this._updateRain(dt, this._cur.rain);
-    this.mist.material.opacity = this._cur.mist;
   }
 
   _advance(dt) {
@@ -187,12 +180,10 @@ function copyProfile(dst, src) {
   dst.fogFactor = src.fogFactor;
   dst.dim = src.dim;
   dst.rain = src.rain;
-  dst.mist = src.mist;
 }
 
 function lerpProfiles(dst, a, b, e) {
   dst.fogFactor = lerp(a.fogFactor, b.fogFactor, e);
   dst.dim = lerp(a.dim, b.dim, e);
   dst.rain = lerp(a.rain, b.rain, e);
-  dst.mist = lerp(a.mist, b.mist, e);
 }
