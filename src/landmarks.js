@@ -100,13 +100,13 @@ function bridge() {
   // gently arched deck: 5 planks fanning over the water, road-flush
   for (let i = 0; i < 5; i++) {
     const k = i / 4 - 0.5; // -0.5..0.5 across the span
-    const plank = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.045, 1.15), mat(COLORS.trunk));
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.045, 1.35), mat(COLORS.trunk));
     plank.position.set(k * 1.35, 0.1 + Math.cos(k * Math.PI) * 0.09, 0);
     plank.rotation.z = -Math.sin(k * Math.PI) * 0.16;
     plank.castShadow = plank.receiveShadow = true;
     g.add(plank);
   }
-  for (const side of [-0.52, 0.52]) { // low rails
+  for (const side of [-0.62, 0.62]) { // low rails
     const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.5, 5), mat(COLORS.trunk));
     rail.rotation.z = Math.PI / 2;
     rail.position.set(0, 0.34, side);
@@ -147,7 +147,7 @@ export function buildLandmarks(island, mode = "island") {
   const spots = {
     garden: { position: new THREE.Vector3(1.8, 0, -1.9), facing: -0.9 },   // at the garden's near edge, rake in hand
     temple: { position: new THREE.Vector3(3.35, 0, -2.55), facing: Math.PI * 0.78 }, // kneeling before the steps, clear of the roof overhang
-    bridge: { position: new THREE.Vector3(-4.05, 0.16, 2.15), facing: 2.5 },       // on the deck, gazing downstream
+    bridge: { position: new THREE.Vector3(-4.1, 0.16, 2.0), facing: 2.5 },         // on the deck, ~0.6 off the road center line, gazing downstream
   };
 
   function update(dt, t2, ws) {

@@ -6,6 +6,11 @@ import { COLORS, mat } from "./world.js";
 const KIMONO = 0x3a4a73; // lifted ink navy — dark enough to read as ink, light enough to keep its shape in shadow
 const KIMONO_DARK = 0x1c2333;
 
+// mirrors the Fire's world position (x, z) in main.js / world.js; his walking
+// paths must clear the pit by KEEPOUT so he never crosses the flames.
+const FIRE = new THREE.Vector2(0.9, 0.2);
+const KEEPOUT = 1.0;
+
 function limb(radius, length, color) {
   const g = new THREE.Group();
   const m = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 0.85, length, 5), mat(color));
@@ -18,15 +23,39 @@ function limb(radius, length, color) {
   return g;
 }
 
-function katana(length = 0.62) {
+function katana() {
   const g = new THREE.Group();
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.018, length, 0.045), mat(0xcfd2d6));
-  blade.position.y = length / 2 + 0.09;
-  const guard = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.015, 6), mat(KIMONO_DARK));
-  guard.position.y = 0.09;
+
+  // grip centred on the group origin (the hand grips here); a thin darker ring
+  // wraps it for a two-tone tsuka-ito look.
   const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.18, 5), mat(0x4a3b2c));
-  blade.castShadow = true;
-  g.add(blade, guard, grip);
+  const wrap = new THREE.Mesh(new THREE.CylinderGeometry(0.0245, 0.0245, 0.028, 5), mat(0x241a12));
+  wrap.position.y = -0.03;
+
+  // hexagonal tsuba (flat cylinder) seated at the top of the grip
+  const tsuba = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.014, 6), mat(KIMONO_DARK));
+  tsuba.position.y = 0.1;
+
+  // curved blade: three thin box segments stacked with a small relative z-tilt
+  // so the edge sweeps like a real katana; tip segment narrower. length ~0.66.
+  const segLen = 0.22, tilt = 0.065; // ~3.7° per joint
+  const widths = [0.045, 0.041, 0.033];
+  let joint = new THREE.Group();
+  joint.position.y = 0.107; // sit just above the tsuba
+  g.add(joint);
+  for (let i = 0; i < widths.length; i++) {
+    const seg = new THREE.Group();
+    if (i > 0) seg.position.y = segLen;
+    seg.rotation.z = tilt;
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.02, segLen, widths[i]), mat(0xcfd2d6));
+    blade.position.y = segLen / 2;
+    blade.castShadow = true;
+    seg.add(blade);
+    joint.add(seg);
+    joint = seg;
+  }
+
+  g.add(grip, wrap, tsuba);
   return g;
 }
 
@@ -303,7 +332,43 @@ export class Musashi {
       pts.push(from.clone().lerp(to, k).add(side.clone().multiplyScalar((Math.random() - 0.5) * 1.3)));
     }
     pts.push(to);
-    const curve = new THREE.CatmullRomCurve3(pts);
+
+    // walk AROUND the fire: shove any intermediate waypoint that falls inside the
+    // keepout radially out to exactly KEEPOUT. endpoints are left alone — the
+    // fire-side spots legitimately stand ~0.7 from the pit.
+    const pushOut = (p, radius) => {
+      const off = new THREE.Vector2(p.x - FIRE.x, p.z - FIRE.y);
+      if (off.lengthSq() < 1e-8) off.set(1, 0);
+      off.setLength(radius);
+      p.x = FIRE.x + off.x;
+      p.z = FIRE.y + off.y;
+    };
+    for (let i = 1; i < pts.length - 1; i++) {
+      if (new THREE.Vector2(pts[i].x - FIRE.x, pts[i].z - FIRE.y).length() < KEEPOUT) pushOut(pts[i], KEEPOUT);
+    }
+    let curve = new THREE.CatmullRomCurve3(pts);
+    // CatmullRom overshoots its waypoints, so verify by sampling: if the swept
+    // path still grazes the pit (ignoring the endpoint tails), nudge the nearest
+    // intermediate waypoint further out and rebuild. a few iterations suffice.
+    for (let iter = 0; iter < 3; iter++) {
+      let near = null, nearD = Infinity;
+      for (let s = 0; s <= 24; s++) {
+        const u = s / 24;
+        if (u < 0.1 || u > 0.9) continue;
+        const q = curve.getPoint(u);
+        const d = Math.hypot(q.x - FIRE.x, q.z - FIRE.y);
+        if (d < nearD) { nearD = d; near = q; }
+      }
+      if (nearD >= 0.55) break;
+      let wi = 1, wd = Infinity;
+      for (let i = 1; i < pts.length - 1; i++) {
+        const d = Math.hypot(pts[i].x - near.x, pts[i].z - near.z);
+        if (d < wd) { wd = d; wi = i; }
+      }
+      const cur = new THREE.Vector2(pts[wi].x - FIRE.x, pts[wi].z - FIRE.y).length();
+      pushOut(pts[wi], Math.max(KEEPOUT, cur) + 0.3);
+      curve = new THREE.CatmullRomCurve3(pts);
+    }
     this.walk = { curve, length: curve.getLength(), dist: 0, target };
     this.phase = "walking";
     this.scroll.visible = this.easel.visible = this.heldKatana.visible = false;
@@ -377,19 +442,46 @@ export class Musashi {
         }
       });
     } else if (a === "kata") {
-      // an endless slow cut: raise (2.4s) — pause — cut (0.4s) — hold (1.6s)
-      const cycle = 6.0;
-      const k = (this.activityTime % cycle) / cycle;
-      let lift; // 0 = guard, 1 = overhead
-      if (k < 0.4) lift = easeInOut(k / 0.4); // raise
-      else if (k < 0.5) lift = 1; // poised
-      else if (k < 0.57) lift = 1 - easeIn((k - 0.5) / 0.07); // the cut
-      else lift = 0; // held low, breathing
-      const armX = 1.15 + lift * -2.05; // from forward guard to overhead
-      this.armL.rotation.x = armX;
-      this.armR.rotation.x = armX;
-      this.body.rotation.x = lift * -0.06 + (lift === 0 ? Math.sin(t * 1.4) * 0.008 : 0);
-      this.headGroup.rotation.x = lift * 0.15;
+      // a deliberate 8s form: chudan hold → rise to jodan → poise → cut →
+      // follow-through → return. arm angles run chudan(1.10)→jodan(-0.95)→low(1.62).
+      const CHUDAN = 2.2, RISE = 1.4, POISE = 0.7, CUT = 0.3, FOLLOW = 1.2;
+      const RETURN = 8.0 - (CHUDAN + RISE + POISE + CUT + FOLLOW);
+      const A_CHUDAN = 1.10, A_JODAN = -0.95, A_LOW = 1.62;
+      const k = this.activityTime % 8.0;
+      let armX, tip = 0, pitch = 0, hipY = 0, headX = 0;
+      if (k < CHUDAN) { // level, near-still, breathing through the tip
+        armX = A_CHUDAN;
+        tip = Math.sin(t * 1.2) * 0.03;
+      } else if (k < CHUDAN + RISE) { // lift overhead, head up, body straightens
+        const e = easeInOut((k - CHUDAN) / RISE);
+        armX = A_CHUDAN + (A_JODAN - A_CHUDAN) * e;
+        headX = -0.12 * e;
+        pitch = -0.05 * e;
+      } else if (k < CHUDAN + RISE + POISE) { // poised — total stillness
+        armX = A_JODAN; headX = -0.12; pitch = -0.05;
+      } else if (k < CHUDAN + RISE + POISE + CUT) { // the cut
+        const e = easeIn((k - CHUDAN - RISE - POISE) / CUT);
+        armX = A_JODAN + (A_LOW - A_JODAN) * e;
+        headX = -0.12 + 0.30 * e;
+        pitch = -0.05 + 0.17 * e; // pitches ~0.12 forward net
+        hipY = Math.sin(e * Math.PI) * 0.15; // a slight hip pivot, out and back
+      } else if (k < CHUDAN + RISE + POISE + CUT + FOLLOW) { // exhale, settle upright
+        const e = (k - CHUDAN - RISE - POISE - CUT) / FOLLOW;
+        armX = A_LOW;
+        pitch = 0.12 * (1 - easeInOut(e));
+        headX = 0.18 * (1 - e);
+      } else { // return to chudan
+        const e = easeInOut((k - CHUDAN - RISE - POISE - CUT - FOLLOW) / RETURN);
+        armX = A_LOW + (A_CHUDAN - A_LOW) * e;
+      }
+      this.armL.rotation.x = armX + tip;
+      this.armR.rotation.x = armX + tip;
+      // bias both hands inward so they read as gripping the hilt together
+      this.armL.rotation.z = 0.42;
+      this.armR.rotation.z = -0.18;
+      this.body.rotation.x = pitch;
+      this.body.rotation.y = hipY; // derived from phase, returns to 0 — no drift
+      this.headGroup.rotation.x = headX;
     } else if (a === "tea") {
       const sip = Math.max(0, Math.sin(t * 0.45)); // slow raise-and-sip
       this.armR.rotation.x = 0.85 + sip * 0.5;
