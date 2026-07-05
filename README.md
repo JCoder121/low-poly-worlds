@@ -18,15 +18,18 @@ npm run build    # static build in dist/
 
 ## Anatomy
 
-- `src/world.js` — island/expanse terrain, sakura tree, fire, path, torii, season tints
-- `src/musashi.js` — the figure, his ten activities, the walk/settle state machine
-- `src/travelers.js` — spawner, walking figures, speech-bubble links
-- `src/links.js` — the travelers' library (99 Wikipedia links, shuffled deck)
-- `src/cycle.js` — the day/night + season clock (`ws` state read by everything else)
+- `src/world.js` — island/expanse terrain, sakura tree, fire, road (rim-trimmed, torii astride it), season tints, wind sway
+- `src/musashi.js` — the figure, his eleven activities, the walk/settle state machine, obstacle-aware pathing
+- `src/travelers.js` — weighted-cast spawner, walking figures, speech-bubble links
+- `src/links.js` — the travelers' library (141 Wikipedia links, shuffled deck)
+- `src/cycle.js` — the day/night + season clock (`ws` state read by everything else); random or real-time start
 - `src/weather.js` — seasonal falling particles (petals/leaves/snow), rain, fireflies, mist
-- `src/landmarks.js` — temple, lantern, zen garden, bridge
+- `src/landmarks.js` — temple, lantern, zen garden, bridge, winter snow caps
 - `src/water.js` — the river and koi pond: laned faceted surface with per-vertex banding, sky-mirror tint, bank foam, koi
-- `src/main.js` — renderer, lighting, isometric camera + parallax, loader, live season wordmark
+- `src/cat.js` — the napping cat and its little life
+- `src/wind.js` — the gust clock (drives tree sway, particle drift, the sound bed)
+- `src/sound.js` — synthesized ambience: brook, wind, bell, and Musashi's shinobue
+- `src/main.js` — renderer, lighting, isometric camera + parallax, loader, wordmark, toggles, the frame loop
 
 ## Tuning knobs
 
@@ -71,11 +74,12 @@ scene instead of waiting for the clock:
 
 | param | example | effect |
 |---|---|---|
-| `time` | `?time=0.8` | day position 0..1 (dawn 0, day 0.25, dusk 0.55 default, night 0.8) |
-| `season` | `?season=winter` (or `0-3`) | starting season |
+| `time` | `?time=0.8` | day position 0..1 (dawn 0, day 0.25, dusk 0.55, night 0.8) — default is random per load since v5 |
+| `season` | `?season=winter` (or `0-3`) | starting season — default is random per load since v5 |
 | `speed` | `?speed=0` | clock rate multiplier; 0 freezes it (great for screenshots), 60 fast-forwards a season in ~12 s |
-| `activity` | `?activity=carving` | starting activity (one of the 10 above) |
+| `activity` | `?activity=flute` | starting activity (one of the 11) |
 | `duration` | `?duration=15` | seconds before the next walk (default 75) |
+| `real` | `?real=1` | live mode: the clock follows your actual local time and month (also the bottom-left `live ↗` toggle) |
 
 See `.claude/skills/verify/SKILL.md` for the full verification recipe.
 
