@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>sparrow's wake</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body data-mode="island">
+    <div id="loader">
+      <div class="loader-mon">☠</div>
+      <div class="loader-word">sparrow's wake</div>
+      <div class="loader-bar"><div id="loader-fill"></div></div>
+      <div id="loader-msg">setting sail…</div>
+    </div>
+
+    <canvas id="scene"></canvas>
+
+    <header id="wordmark">
+      <h1>sparrow's wake</h1>
+      <div id="skyline" class="mono"></div>
+    </header>
+
+    <nav id="toggles-left" class="mono">
+      <button id="mode-toggle" type="button">night ↗</button>
+      <button id="sound-toggle" type="button">sound ↗</button>
+      <button id="live-toggle" type="button">live ↗</button>
+    </nav>
+    <nav id="toggles-right" class="mono">
+      <a href="/">expanse ↗</a>
+    </nav>
+
+    <div id="bubbles"></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

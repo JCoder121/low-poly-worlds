@@ -1,0 +1,186 @@
+# sparrow's wake — Module Contracts
+
+Read FIRST: `../design/sparrows-wake-brief.md` (from repo root:
+`~/Documents/claude_playground/design/sparrows-wake-brief.md`) and the skill at
+`~/.claude/skills/low-poly-living-postcard/SKILL.md`. Reference implementation
+patterns: `~/Documents/claude_playground/musashi-homepage/src/*.js`.
+
+Already written (do NOT edit; import from them): `palette.js` (COLORS, mat,
+unlit, jitterGeometry), `waves.js` (WAVES, WAVE_MAX, waveHeight(x,z,t),
+waveGLSL()), `figures.js` (makeFigure, breathe, walkPose, restPose),
+`cycle.js`, `main.js`, `style.css`, both HTML pages. `main.js` shows exactly
+how your module is constructed and called — match it.
+
+Shared frame state `ws` (from cycle): `{ mode: 'day'|'night', blend: 0..1
+(0=day), time: seconds (scrubbed by ?speed; USE THIS for all animation, not
+your own clocks), reduced: bool, lighting: { bg, sun, hemiSky, hemiGround,
+trough, mid, crest: THREE.Color; sunIntensity, hemiIntensity, fillIntensity,
+starAlpha, lampIntensity: number } }`.
+
+Shared `events` object: `{ plank: { active: bool, phase: 'idle'|'muster'|
+'walk'|'bounce'|'splash'|'swim' } }` — plank.js writes, captain/crew read.
+
+World frame: ortho iso camera at (14, 11.5, 14) → (0, 0.4, 0), frustum
+half-height 12.5. Sea level y=0, swell peaks ±0.21 (WAVE_MAX). Ship sits at
+origin, bow toward +x, starboard = +z (camera-side: plank & traffic visible).
+Units ≈ musashi scale; figures are ~1.0 tall.
+
+## water.js — `class Water(scene, pageMode)` [agent A]
+
+THE showpiece. `update(ws)` per frame.
+- Ocean surface: non-indexed grid, GPU-displaced via CustomShaderMaterial
+  (`import CustomShaderMaterial from "three-custom-shader-material/vanilla"`)
+  over `MeshStandardMaterial({ flatShading: true, roughness: 1, metalness: 0 })`.
+  Vertex GLSL from `waveGLSL()`; uniforms: uTime (set from ws.time), uTrough/
+  uMid/uCrest (vec3, copied from ws.lighting each frame). Fragment: mix the
+  three colors by displaced height (csm_Position.y mapped -WAVE_MAX..+WAVE_MAX
+  → 0..1, trough→mid at .5, mid→crest above; slight bias toward mid).
+  Receive shadows. flatShading gives facet normals automatically.
+- `pageMode === 'expanse'`: rect grid ~56×56 units, cell ~0.55 (fog eats the
+  far edge). `'island'`: disc radius ~10.5 (CircleGeometry rotated flat,
+  toNonIndexed) + a faceted slab skirt below (cliff-edge ring, mat(trough
+  color), slight inward taper, jitterGeometry) so the ocean reads as a cut
+  block of sea floating on parchment; soft round shadow blob (unlit, 0.08
+  alpha) beneath is optional-nice.
+- Helpers other modules call:
+  `splash(x, z, scale=1)` — white burst: 6-10 unlit foam shards popping up +
+  expanding ripple ring, self-removing ~1.2s;
+  `ring(x, z)` — single expanding fading ripple ring;
+  both animated inside water.update via ws.time.
+- Perf: one draw call per surface; no per-frame geometry writes (GPU does
+  displacement); reduced motion → halve wave amps via a uAmp uniform.
+
+## ship.js — `class Ship(scene)` [agent B]
+
+The brig. `group` (THREE.Group added to scene), `update(ws)`.
+- Hull: chunky extruded/boxy prism ~6.5 long (bow +x), jittered; bulwarks,
+  deck at local y≈1.05, stern cabin aft (-x) with 3 window planes + stern
+  lantern (brass + glow sphere), bowsprit, 2 masts (x≈+1.2, -0.9, h≈4.8),
+  loose square sails (PlaneGeometry 6×4 segments, gentle vertex billow by
+  ws.time — CPU fine at this vertex count), black flag at mainmast tip
+  (waving strip), crow's nest ring on mainmast, ratline hints (4-6 thin
+  cylinders), ship's wheel aft, deck hatch amidships, 2 barrels + coiled
+  rope props, one cannon portside, **plank protruding starboard at z≈+1.1,
+  local x≈0.4, ~1.4 long** — permanently mounted.
+- Bob: sample `waveHeight` (import from waves.js) at 4 corners (±2.6, ±1.0)
+  in WORLD space each frame → group.position.y = mean (+ tiny constant so
+  hull sits IN the water ~0.35 deep), group.rotation.z/x from fore-aft &
+  port-starboard height deltas (damped lerp 0.06); slow heading sway
+  rotation.y = sin(ws.time*0.05)*0.04. All deck life is children of `group`
+  so everyone rides for free.
+- Night: window/lantern materials get emissive `COLORS.lanternGlow`,
+  emissiveIntensity = ws.lighting.lampIntensity * ~1.6 (0 by day).
+- Exports for others: `spots` — map of named deck positions (LOCAL coords)
+  `{ position: THREE.Vector3, facing: radians }`: helm, bow, compass,
+  mapBarrel, steps, rail, gullRail, mastNap, cannon, ropeSpot, hatch,
+  plankBase, plankTip, crowsNest, swabA, swabB. `keepouts` — array of
+  `{ x, z, r }` circles (masts, hatch, wheel) in local coords. `deckY` num.
+  `deckBounds` — `{ minX, maxX, minZ, maxZ }` walkable rect (inside
+  bulwarks). All meshes castShadow/receiveShadow sensibly.
+
+## captain.js — `class Captain(ship, events)` [agent C]
+
+Jack-shaped figure via makeFigure({ hat:'tricorn', bandanaColor crimson under
+hat is fine to skip, coat: COLORS.captainCoat, shirt: crewShirt,
+pants: boots-dark }), scale 1.0, added to ship.group. `update(ws, dt)`.
+- State machine like musashi.js: activities ~75s (`?duration=` overrides;
+  `?activity=` starts one): helm (hands on wheel), spyglass (bow, arm raised
+  holding thin cylinder), compass (stands, head+body wobble following a
+  wandering compass held flat), map (leans over mapBarrel), rum (sits on
+  steps, periodic swig), flourish (slow sword figure-8, 8s form, ~like
+  musashi kata), rail (leans on rail watching traffic), gull (crouches at
+  gullRail, tosses crumb — a gull prop perches there while active), nap
+  (lies under mastNap; night bias: nap/rum/rail weighted 3× after dark).
+- Walks between spots: straight-ish path with keep-out detours (offset
+  waypoint around any keepout circle the segment crosses), arc-length
+  stepping ~0.55 u/s, walkPose(u, swing 0.85 — the swagger), slight rocking
+  roll. Props (spyglass, sword, compass, mug) are tiny meshes toggled
+  visible per activity.
+- During events.plank.active: walk to a spot near plankBase, stand facing
+  it (arms crossed pose: both arm pivots rotation.x ≈ 0.9), return to
+  routine when phase back to 'idle'.
+- breathe() always; restPose when standing.
+
+## crew.js — `class Crew(ship, events)` [agent D — also writes plank.js]
+
+3 figures (makeFigure, bandana hats, varied shirt/stripe colors), children of
+ship.group. `update(ws, dt)`. Each crew member has its own small task loop
+(~40-60s per task, staggered): swab (at swabA/swabB, mop prop, figure-8
+scrub sway), ropeHaul (at ropeSpot, rhythmic pull lean), coil (crouch bob),
+crowsNest (walk to mainmast, simple vertical glide up to crowsNest spot,
+scan left-right, glide down — no ladder animation needed), cannonPolish
+(crouch at cannon, circular arm), doze (night-biased, slumps by hatch).
+Keep-outs + arc-length walking same as captain. Crew never leave the deck.
+`requestEscort()` → nearest crew abandons task, escorts prisoner (plank.js
+positions the prisoner; the escort walks behind it to plankBase, waits,
+returns). Expose `escortBusy` bool.
+
+## plank.js — `class Plank(ship, captain, crew, water, events)` [agent D]
+
+The event. `update(ws, dt)`. Every 3–5 min (`?event=plank` fires one 3s
+after load; suppress first 45s otherwise). Sequence (phases into
+events.plank): muster — prisoner figure (makeFigure, drab colors, arms
+pinned: arm pivots rotation.x = -0.4 fixed) pops from hatch, crew escort +
+captain converge; walk — prisoner shuffles (short steps, swing 0.3) from
+hatch to plankBase then out to plankTip; bounce — two springy dips at the
+tip (scale/position bounce with overshoot); splash — prisoner arcs off
+(ballistic ~0.7s), calls water.splash(worldX, worldZ, 1.4) on entry, hidden
+briefly; swim — resurfaces, backstroke pose (on back, lazy alternating
+arms), drifts along traffic lane direction (+x world, ~0.5 u/s) sampling
+waveHeight for y, fades/removes at fog edge. Then phase 'idle'. Whole thing
+~20s. The prisoner is world-space once airborne (reparent from ship.group
+to scene at launch, keeping world transform).
+
+## traffic.js + links.js — `class Traffic(scene, camera, events)` [agent E]
+
+Musashi travelers, seaborne. `update(ws, dt)`.
+- Lane: straight world line z ≈ +3.4 (starboard, camera side), running -x →
+  +x from ~(-26, 3.4) to (+26, 3.4) with per-spawn z jitter ±0.8. Uniform
+  world-speed drift 0.35-0.5 u/s, bob via waveHeight (+ small roll).
+- Cast (weighted): bottle-with-rolled-map 22%, canoe+paddler (paddle dips
+  alternate sides) 20%, sea turtle (flipper sway) 18%, driftwood+perched
+  gull 16%, barrel 14%, shark fin (just a fin slicing, slight S-curve) 4%,
+  whale (back arc + spout of foam shards, submerges) 2%, ghost ship 1% —
+  NIGHT ONLY (unlit COLORS.ghostShip flat silhouette, far lane z≈-14,
+  slow, no bubble), else reroll. Spawn every 20–45s, one at a time on the
+  near lane. All geometry from primitives + palette; ~0.3-0.9 scale.
+- Bubbles: when |x| < 1.8 (except fin/whale/ghost), pause drift 2s, DOM
+  bubble in #bubbles div: `<div class="bubble"><a href target="_blank"
+  rel="noopener">the golden age of piracy →</a></div>` positioned every
+  frame by projecting (x, y+1.2, z) through camera → screen px (see
+  musashi travelers.js pattern). Linger ~14s total then .out + remove.
+  Hovering the bubble holds the drifter until pointer leaves.
+- links.js: export LINKS = 30 curated `{ label, url }` piracy/maritime
+  Wikipedia entries (golden age of piracy, letters of marque, Blackbeard,
+  Anne Bonny, the Spanish Main, doldrums, scurvy, pieces of eight, Davy
+  Jones' locker, flying dutchman, message in a bottle, celestial
+  navigation…). Shuffled no-repeat deck (reshuffle when exhausted).
+
+## sound.js — `class Ambience()` [agent F]
+
+WebAudio, all synthesized, OFF until `toggle()`. `enabled` bool,
+`update(ws, dt)`. Lazy AudioContext on first enable (user gesture). Persist
+localStorage `sw-sound` = '1'/'0'; auto-enable on construction if '1' BUT
+only after first pointerdown (autoplay policy). Layers: ocean bed — brown
+noise (buffer) through lowpass ~420Hz, slow gain LFO (0.05Hz ±30%) so it
+swells like rollers; wash accents — bandpassed noise burst every 6-14s
+(gentle breaking crest); timber creak every 9-20s — short (0.4s) sawtooth
+80-140Hz sweep through narrow bandpass, very quiet; gull cry (day only,
+every 25-60s) — two-note descending sine chirp w/ vibrato, distant (gain
+0.05); ship's bell (every 90-150s) — struck FM/decaying sine pair, softer
+at night. Night: bed lowpass down to ~300Hz, no gulls. Master gain 0.5,
+2s fade in/out on toggle. No audio files.
+
+## Rules for every agent
+
+- Import three as `import * as THREE from "three"`. Colors ONLY from
+  palette COLORS; materials ONLY via mat()/unlit() (+ CSM for water).
+- Animate from `ws.time` (scrub-safe), never Date.now/your own clock.
+  Springy pop-ins, glacial ambient loops. Respect `ws.reduced`.
+- castShadow on figures/props; receiveShadow on deck/water.
+- Zero per-frame allocations in update loops (module-scope scratch vectors).
+- Write ONLY your assigned file(s). If a contract detail is ambiguous,
+  match the musashi-homepage equivalent module.
+- Your file must be import-clean (no side effects beyond class/const
+  exports) and must not crash if a named spot is missing (fallback
+  Vector3(0, deckY, 0)).
