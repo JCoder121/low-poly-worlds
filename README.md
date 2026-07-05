@@ -127,3 +127,28 @@ per-season/per-time-of-day verification recipe.
   taller pillars (Kyoto vibes); the bridge deck is ~20% wider; the sakura is
   18% bigger; the zen garden's sand is a jittered, subdivided surface with 10
   finer ridges and concentric raked arcs around its largest rock.
+
+## v5 — the long river and the floating island
+
+- **The river winds.** Nine control points instead of four; it enters at the
+  north-west, meanders under the bridge (now roughly the halfway mark of its
+  arc), S-curves south, and settles into the koi pond, which moved to
+  (-2.4, 5.2) to make room.
+- **The island floats.** Three tiers again — but strictly tapering downward
+  (7.6 → 6.5 → 5.0) like an island adrift in the sky, not the old wide-waisted
+  cake. The road now ends exactly at the generated cliff edge: the top tier's
+  blob outline is captured and a bearing→radius interpolator trims the road
+  curve's endpoints to it (no more bleed-over on unlucky loads).
+- **Every load is a different moment.** Fresh visits open at a random season
+  and random time of day (`?time=`/`?season=` still pin them for testing);
+  the weather system seeds from the cycle's pick instead of re-parsing the URL.
+- **A richer road.** Travelers scaled to stand beside Musashi (1.3×), drawn
+  from a weighted cast: monk/farmer/merchant/ronin joined by pilgrim,
+  fisherman, and noblewoman — plus a samurai (4%), a two-tailed white fox
+  spirit (5%), and the shogun himself (1%). The link deck grew to 141.
+- **Musashi refined.** His walks route around the fire pit (waypoint keepout +
+  curve resampling); his kata is a deliberate 8-second form — chudan, rise to
+  jodan, a poised stillness, the cut with a hip pivot, follow-through, return —
+  swung with a properly curved three-segment blade and both hands on the grip.
+  The bridge deck widened again (1.35) with his watching spot offset from the
+  road line, so travelers pass behind him without colliding.

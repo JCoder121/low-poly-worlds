@@ -17,8 +17,8 @@ bottom-right on each (`island ↗` / `expanse ↗`).
 ## Dev scrub params (query string, either page)
 | param | values | effect |
 |---|---|---|
-| `time` | 0..1 | day position; dawn 0.0, day 0.25, **dusk 0.55 (default)**, night 0.8 (wraps at 1) |
-| `season` | `spring｜summer｜autumn｜winter` or `0-3` | starting season (default spring/0) |
+| `time` | 0..1 | day position; dawn 0.0, day 0.25, dusk 0.55, night 0.8 (wraps at 1). **Since v5 the default is RANDOM per load** — always pin `time` explicitly for deterministic screenshots |
+| `season` | `spring｜summer｜autumn｜winter` or `0-3` | starting season. **Since v5 the default is RANDOM** (and a random offset within the season); a pinned `?season=` starts at the season's beginning for a full stable window |
 | `speed` | multiplier | day/night + season clock rate; `0` **freezes** the clock (use for clean screenshots); `60` fast-forwards a season boundary in ~12s (`DAY_LENGTH`=360s, `DAYS_PER_SEASON`=2 → 720s/season) |
 | `activity` | one of the 10 names below | starting activity |
 | `duration` | seconds | override activity-hold time before the next walk (default 75s) |
@@ -39,7 +39,8 @@ means standing in the koi pond shallows facing the river's inflow.
 - **No status pill since v4** — the `#status` narration line was removed. Musashi's activity is verified visually (pose + spot); traveler arrivals are verified by their speech bubble alone.
 - Wordmark = `musashi's hill` + a live season line: `document.getElementById('season').textContent` must equal `ws.season` (updates on season flips; check with `?speed=60` — flips within ~12s).
 - Musashi cycles activities every `activityDuration` seconds (default 75, `?duration=` override); walks between spots via a `CatmullRomCurve3` with two jittered waypoints (`startWalk`/`updateWalk`).
-- Travelers spawn ~7-45s apart (first visit early, `travelers.js` `nextSpawnAt`); bubble = `.bubble` overlay (one `<a>` inside), 99 links in `src/links.js`.
+- Travelers spawn ~7-45s apart (first visit early, `travelers.js` `nextSpawnAt`); bubble = `.bubble` overlay (one `<a>` inside), 141 links in `src/links.js`. Since v5 the cast is weighted (`KINDS` table): monk/farmer/merchant/ronin/pilgrim/fisherman/noblewoman common-ish, samurai 4%, fox spirit 5%, shogun 1%. Humanoids are scaled 1.3× (Musashi-comparable); the fox is animal-scaled with a lower bubble anchor (`bubbleY`).
+- Musashi's walks route AROUND the fire pit at (0.9, 0.2) (`musashi.js` FIRE/KEEPOUT + curve resample); his kata is an 8s six-phase form (chudan → rise → poise → cut → follow-through → return) with a curved 3-segment blade — verify with `?activity=kata&speed=0&time=0.55&season=spring` and 2-3 screenshots a few seconds apart showing distinct phases.
 - **Traveler speed is uniform since v4**: stepping is `u += dir * (speed / curveLength) * dt` with `getPointAt/getTangentAt` (arc-length), speed 0.36-0.44 world-units/s. On `/` (long road curve), spawn happens where `|x|` first drops under 13 (just inside the fog); the bubble triggers at `|world x| < 1.6` (mid-frame). Verify no fast-then-slow snap: sample the bubble's `style.left` per second — deltas should be steady (~±10%, road curvature only).
 - **Bubble timing**: linger 14s from creation (`traveler.bubbleTimer = 14`); hovering the bubble sets `traveler.paused = true`, freezing its position; `mouseleave` resumes and re-extends the timer to `Math.max(bubbleTimer, 10)`. Removal has a 750ms CSS fade tail, so creation→DOM-removal measures ~14.7-14.8s total — correct, not a bug.
 - Hover-pause verification: dispatch `mouseenter` directly on `document.querySelector('.bubble')`, sample `getBoundingClientRect().left` every ~150ms before/during/after — unhovered drifts several px/sample, hovered `left` is bit-for-bit frozen.
@@ -53,7 +54,11 @@ The big cliff waterfall, expanse basin, night sparkles, and dragonflies are
 **gone** since v4. The rig, identical on both pages: river enters at the NW
 (tapering to a point + sinking into the ground over its first ~12% — no hard
 start), runs under the bridge, and flows straight into the **koi pond/lake**
-(disc r 1.1, top face y 0.06, at grade like the road) at world (-2.7, 4.7).
+(disc r 1.1, top face y 0.06, at grade like the road) at world (-2.4, 5.2).
+Since v5 the river is 9 control points and winds — the bridge crossing at
+(-4.2, 2.6) sits roughly halfway along its arc. On the island page the road
+is trimmed per-load to the generated cliff edge (world.js outline
+interpolator), so its ends always meet the rim exactly.
 The river curve's tail ends inside the disc so the surfaces overlap and share
 the mirror tint (no seam); the dark bank ribbons stop at u 0.88 so no bank
 juts into the open water; 3 ripple rings cycle outward from the inflow.
