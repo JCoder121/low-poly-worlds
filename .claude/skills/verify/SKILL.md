@@ -54,11 +54,28 @@ The big cliff waterfall, expanse basin, night sparkles, and dragonflies are
 **gone** since v4. The rig, identical on both pages: river enters at the NW
 (tapering to a point + sinking into the ground over its first ~12% — no hard
 start), runs under the bridge, and flows straight into the **koi pond/lake**
-(disc r 1.1, top face y 0.06, at grade like the road) at world (-2.4, 5.2).
-Since v5 the river is 9 control points and winds — the bridge crossing at
-(-4.2, 2.6) sits roughly halfway along its arc. On the island page the road
-is trimmed per-load to the generated cliff edge (world.js outline
-interpolator), so its ends always meet the rim exactly.
+(disc r 1.1, top face y 0.06, at grade like the road) at world (-2.2, 5.9).
+v6 reverted the v5 meander: the river runs its straight old course (5 points),
+under the bridge at (-4.2, 2.6), extended down to the relocated pond. On the
+island page the road is trimmed per-load flush to the generated cliff edge
+(world.js outline interpolator; end ribbon edges conform to the rim arc) and
+the torii is placed ON the curve near its west end, astride the road.
+
+## v6 systems
+- Wind (`wind.js`): gust every 18–50s, strength 0..1 → pines/sakura lean
+  (world.wind), petal/snow drift ×(1+5g), firefly scatter. Zero under
+  reducedMotion. Hard to catch in one screenshot — use two-frame diff on a
+  pine crown during a forced long watch, or just eyeball a 30s recording.
+- Cat (`cat.js`): random spot per load (temple steps / under sakura / zen
+  garden / river bank), naps, ear flicks, alert glances, relocates every
+  150–240s (fire detour). Asleep (no alerts/moves) at ws.night > 0.5.
+- Live mode: `?real=1` or the bottom-left `live ↗` toggle (localStorage
+  "musashi-live") → season from real month, dayT from local hh:mm via anchors
+  06→0.0, 12→0.25, 18→0.55, 22→0.8, wrap to 06. Explicit ?time/?season win.
+- Ambience (`sound.js`): bottom-left `sound ↗` toggle, synthesized
+  brook/wind/bell, off by default, starts only on click (autoplay policy).
+- Snow accumulation: winterAmt grows caps on temple tiers, lantern, bridge
+  rails (landmarks.js) and the torii kasagi (world.js seasons.update).
 The river curve's tail ends inside the disc so the surfaces overlap and share
 the mirror tint (no seam); the dark bank ribbons stop at u 0.88 so no bank
 juts into the open water; 3 ripple rings cycle outward from the inflow.

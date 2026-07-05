@@ -130,10 +130,9 @@ per-season/per-time-of-day verification recipe.
 
 ## v5 — the long river and the floating island
 
-- **The river winds.** Nine control points instead of four; it enters at the
-  north-west, meanders under the bridge (now roughly the halfway mark of its
-  arc), S-curves south, and settles into the koi pond, which moved to
-  (-2.4, 5.2) to make room.
+- **The river winds.** *(reverted in v6 — the meander fought the calm)* It
+  briefly S-curved with the bridge at mid-arc; v6 restored the straight
+  course, extended to a pond placed lower in the frame.
 - **The island floats.** Three tiers again — but strictly tapering downward
   (7.6 → 6.5 → 5.0) like an island adrift in the sky, not the old wide-waisted
   cake. The road now ends exactly at the generated cliff edge: the top tier's
@@ -152,3 +151,30 @@ per-season/per-time-of-day verification recipe.
   swung with a properly curved three-segment blade and both hands on the grip.
   The bridge deck widened again (1.35) with his watching spot offset from the
   road line, so travelers pass behind him without colliding.
+
+## v6 — wind, a cat, the real sky
+
+- **The river straightened back out** (the v5 meander fought the calm) and
+  runs its old course, extended to the koi pond now sitting lower in the
+  frame at (-2.2, 5.9). The island grew to fit (tiers 8.1/7.0/5.4).
+- **The road belongs to the island.** Its ends are trimmed flush to the
+  generated cliff edge — the final ribbon edge conforms to the rim's arc —
+  and the torii is placed programmatically astride the road's west end, so
+  travelers always pass through the gate.
+- **Wind** (`src/wind.js`): a gust every 18–50s — pines lean, the sakura
+  stirs, petals and snow stream sideways, fireflies scatter. A breath, not a
+  storm; still under reduced motion.
+- **A cat** (`src/cat.js`): paper-white with an ember patch, naps at one of
+  four spots (temple steps, beneath the sakura, the zen garden, the river
+  bank), breathes, flicks an ear, occasionally lifts its head toward the
+  road, and every few minutes pads to a new spot (detouring around the
+  fire). Fully asleep at night.
+- **Live mode**: the `live ↗` toggle (bottom-left) locks the diorama to the
+  visitor's real clock — season from the month, hour mapped through
+  dawn/noon/dusk/night anchors. `?real=1` forces it; `?time=`/`?season=`
+  still win for testing. Persisted in localStorage.
+- **Ambience** (`src/sound.js`): a `sound ↗` toggle, off by default — a
+  synthesized brook (band-passed noise), a wind bed that swells with the
+  gusts, and a soft pentatonic bell every minute or two. No audio assets.
+- **Snow accumulates**: as winter deepens, white caps grow on the temple's
+  roof tiers, the stone lantern, the bridge rails, and the torii's kasagi.
