@@ -12,8 +12,8 @@ export const COLORS = {
   midDay: 0x1d6e93,
   crestDay: 0x57b7c4,
   troughNight: 0x0b2238,
-  midNight: 0x1e3a5c,
-  crestNight: 0x3e6e8e,
+  midNight: 0x24466b,
+  crestNight: 0x4c82a8,
   foam: 0xfbf6ea,
 
   // ship

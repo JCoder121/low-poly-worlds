@@ -24,10 +24,10 @@ const DAY = {
 const NIGHT = {
   bg: new THREE.Color(COLORS.nightBg),
   sun: new THREE.Color(0xbfd4ec),
-  sunIntensity: 0.75,
-  hemiSky: new THREE.Color(0x2e3a55),
+  sunIntensity: 1.1,
+  hemiSky: new THREE.Color(0x35436a),
   hemiGround: new THREE.Color(0x1a2233),
-  hemiIntensity: 0.5,
+  hemiIntensity: 0.65,
   fillIntensity: 0.18,
   trough: new THREE.Color(COLORS.troughNight),
   mid: new THREE.Color(COLORS.midNight),

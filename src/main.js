@@ -21,7 +21,9 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(COLORS.parchment);
-scene.fog = new THREE.Fog(COLORS.parchment, pageMode === "expanse" ? 18 : 22, pageMode === "expanse" ? 34 : 42);
+// camera sits ~23 units out — fog must start BEYOND the ship so the diorama
+// center stays crisp and only the far ocean melts into the paper
+scene.fog = new THREE.Fog(COLORS.parchment, pageMode === "expanse" ? 27 : 29, pageMode === "expanse" ? 46 : 52);
 
 const FRUSTUM = 12.5; // half-height in world units; smaller = closer
 const camera = new THREE.OrthographicCamera();
@@ -75,19 +77,40 @@ const fill = new THREE.DirectionalLight(0xfff1dd, 0.4);
 fill.position.set(-10, 6, 12);
 scene.add(fill);
 
-// ---------- stars (night) ----------
+// ---------- night sky: stars + moon ----------
+// Ortho camera has no sky dome — anything above the frustum band is culled.
+// So the sky lives as camera children: points spread across the upper view
+// band, far back, so they render into the fog/background area on screen
+// (and ride the parallax for free).
+scene.add(camera);
 const starGeo = new THREE.BufferGeometry();
 {
   const pts = [];
-  for (let i = 0; i < 160; i++) {
-    const r = 55, th = Math.random() * Math.PI * 2, ph = Math.random() * Math.PI * 0.4;
-    pts.push(r * Math.cos(th) * Math.sin(ph + 0.15), r * Math.cos(ph) * 0.6 + 12, r * Math.sin(th) * Math.sin(ph + 0.15));
+  for (let i = 0; i < 150; i++) {
+    const x = (Math.random() - 0.5) * 46;
+    const y = 6.5 + Math.random() * 6.5; // top strip of the view
+    pts.push(x, y + Math.abs(x) * 0.05, -58); // corners lift slightly — dome hint
   }
   starGeo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
 }
-const starMat = new THREE.PointsMaterial({ color: 0xf5f0e0, size: 0.14, transparent: true, opacity: 0, depthWrite: false });
+// the iso ocean fills most of the frame; the sky is the hazed top strip, so
+// sky elements skip the depth test and draw over the fog-faded far water
+const starMat = new THREE.PointsMaterial({ color: 0xf5f0e0, size: 0.22, transparent: true, opacity: 0, depthWrite: false, depthTest: false, fog: false });
 const stars = new THREE.Points(starGeo, starMat);
-scene.add(stars);
+stars.renderOrder = 90;
+camera.add(stars);
+
+const moonMat = new THREE.MeshBasicMaterial({ color: 0xeae6d8, transparent: true, opacity: 0, fog: false, depthWrite: false, depthTest: false });
+const moon = new THREE.Mesh(new THREE.CircleGeometry(0.8, 24), moonMat);
+moon.position.set(-5.5, 10.1, -57);
+moon.renderOrder = 92;
+camera.add(moon);
+// a faint halo behind the moon
+const haloMat = new THREE.MeshBasicMaterial({ color: 0xdfe4f0, transparent: true, opacity: 0, fog: false, depthWrite: false, depthTest: false });
+const halo = new THREE.Mesh(new THREE.CircleGeometry(1.6, 24), haloMat);
+halo.position.set(-5.5, 10.1, -57.5);
+halo.renderOrder = 91;
+camera.add(halo);
 
 // ---------- world modules ----------
 const cycle = new Cycle();
@@ -172,6 +195,8 @@ function frame() {
   sun.intensity = L.sunIntensity;
   fill.intensity = L.fillIntensity;
   starMat.opacity = L.starAlpha * 0.9;
+  moonMat.opacity = L.starAlpha * 0.95;
+  haloMat.opacity = L.starAlpha * 0.07;
   document.body.classList.toggle("night", ws.blend > 0.5);
 
   // sun swings west + drops at night (moon comes from the other quarter)

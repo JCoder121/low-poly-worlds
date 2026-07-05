@@ -3,10 +3,13 @@
 // waveHeight() so sea and floaters can never disagree.
 // h(x,z,t) = Σ amp · sin(k·dot(dir,(x,z)) + t·speed·k),  k = 2π/λ
 
+// Directions deliberately NON-orthogonal and wavelengths non-harmonic —
+// orthogonal dirs + integer ratios tile the sea into checkerboard argyle.
 export const WAVES = [
-  { dir: [0.958, 0.287], lambda: 7.0, amp: 0.14, speed: 0.35 }, // long swell
-  { dir: [-0.371, 0.928], lambda: 2.8, amp: 0.05, speed: 0.6 }, // cross chop
-  { dir: [0.8, -0.6], lambda: 1.3, amp: 0.02, speed: 0.9 }, // shimmer
+  { dir: [0.52, -0.854], lambda: 17.0, amp: 0.03, speed: 0.22 }, // slow set — de-tiles the crest pattern
+  { dir: [0.94, 0.341], lambda: 7.3, amp: 0.13, speed: 0.32 }, // long swell
+  { dir: [0.169, 0.986], lambda: 3.9, amp: 0.045, speed: 0.5 }, // cross chop
+  { dir: [-0.615, 0.788], lambda: 1.7, amp: 0.022, speed: 0.85 }, // shimmer
 ];
 
 export const WAVE_MAX = WAVES.reduce((s, w) => s + w.amp, 0); // 0.21
