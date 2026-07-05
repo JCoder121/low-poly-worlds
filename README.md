@@ -178,3 +178,22 @@ per-season/per-time-of-day verification recipe.
   gusts, and a soft pentatonic bell every minute or two. No audio assets.
 - **Snow accumulates**: as winter deepens, white caps grow on the temple's
   roof tiers, the stone lantern, the bridge rails, and the torii's kasagi.
+
+## v7 — the flute, and manners
+
+- **Musashi plays the flute** — an 11th activity: seated on a rock at the
+  pond's south-east shore (also in his night rotation). When the ambience is
+  on, a soft synthesized shinobue drifts in while he plays.
+- **He minds his surroundings now.** Walk paths route around a keep-out list
+  (fire, pond, zen garden, temple, sakura trunk) and never wade the river
+  corridor; mid-walk he sidesteps a passing traveler and rejoins his path.
+  Misogi moved to the water's edge (gassho facing the pond) instead of
+  standing in it, and the relocated zen garden means praying at the temple
+  no longer happens on raked sand.
+- **The bridge sits square** — deck axis re-derived from the road's tangent
+  at the crossing — and travelers arc over its crown instead of clipping
+  through the planks.
+- **Odds and ends**: expanse road runs past the browser borders (±30); the
+  torii grew 1.3× for the taller travelers; the cat grew 33%; sakura fall
+  spread tightened ~14%; the second back hill and a half-buried pine were
+  removed; the torii's winter cap no longer peeks out in spring.
