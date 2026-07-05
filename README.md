@@ -6,7 +6,7 @@ travelers pass on the road offering world-history Wikipedia links in speech bubb
 Since v4 the full-viewport **expanse** is the landing page; the framed island
 diorama lives at `/island.html`.
 
-Design brief: `../../design/musashi-homepage-brief.md`
+Design brief: `./musashi-homepage-brief.md`
 
 ## Run
 
