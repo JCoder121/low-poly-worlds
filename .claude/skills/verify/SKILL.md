@@ -6,7 +6,7 @@ description: How to verify the sparrows-wake diorama end-to-end (dev server + Pl
 # Verifying sparrow's wake
 
 ```sh
-cd ~/Documents/claude_playground/sparrows-wake
+cd ~/Documents/claude_playground/low-poly-worlds/sparrows-wake
 npm run dev   # http://localhost:5173 (needs sandbox-free listen socket)
 ```
 

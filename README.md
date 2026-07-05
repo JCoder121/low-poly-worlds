@@ -7,7 +7,7 @@ sea delivers odd visitors: bottles with maps, canoes, turtles, a shark fin,
 and — night only, far off — a ghost ship. Every few minutes, someone walks
 the plank (comedically; they backstroke off toward the horizon, relieved).
 
-Design brief: `../design/sparrows-wake-brief.md` · built per the
+Design brief: `../../design/sparrows-wake-brief.md` · built per the
 `low-poly-living-postcard` skill · reference build: `../musashi-homepage/`.
 
 ## Run
