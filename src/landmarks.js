@@ -6,6 +6,7 @@ import { COLORS, mat, rock, jitterGeometry } from "./world.js";
 const SAND_LIGHT = 0xefe6cf;
 const ROOF = 0x2a3247;
 const PLASTER = 0xfdfaf2;
+const SNOW = 0xf4f2ec;
 
 function temple() {
   const g = new THREE.Group();
@@ -37,6 +38,20 @@ function temple() {
   roofHigh.position.y = 1.46;
   for (const m of [base, hall, roofLow, roofMid, roofHigh]) { m.castShadow = m.receiveShadow = true; }
   g.add(base, hall, door, roofLow, roofMid, roofHigh);
+  // winter snow: a white cap on each roof tier's peak, hidden until winter.
+  // matches each tier's 4-sided cone (rotation.y, scale.z) so it reads as a
+  // soft lining rather than a blob; grows in with winterAmt (see update()).
+  const snow = [];
+  for (const [r, h, y] of [[1.15, 0.3, 0.98], [0.9, 0.26, 1.22], [0.6, 0.22, 1.46]]) {
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(r * 0.55, 0.07, 4), mat(SNOW));
+    cap.rotation.y = Math.PI / 4;
+    cap.position.y = y + h / 2 - 0.035; // seated just under the tier's apex
+    cap.scale.set(0.001, 0.001, 0.001 * 0.82);
+    cap.castShadow = true;
+    g.add(cap);
+    snow.push(cap);
+  }
+  g.userData.snow = snow;
   return g;
 }
 
@@ -61,7 +76,13 @@ function stoneLantern() {
   const light = new THREE.PointLight(0xffc37a, 0, 3.2, 1.9);
   light.position.y = 0.42;
   g.add(glow, light);
-  g.userData = { glow, light };
+  // a small snow cap perched on the cap, same treatment as the temple roofs
+  const snowCap = new THREE.Mesh(new THREE.ConeGeometry(0.077, 0.05, 6), mat(SNOW));
+  snowCap.position.y = 0.505; // just under the cap's apex
+  snowCap.scale.setScalar(0.001);
+  snowCap.castShadow = true;
+  g.add(snowCap);
+  g.userData = { glow, light, snow: [snowCap] };
   return g;
 }
 
@@ -117,6 +138,19 @@ function bridge() {
       g.add(post);
     }
   }
+  // winter snow lining the two rails: thin white cylinders resting on top,
+  // hidden until winter (grown in with winterAmt in update())
+  const snow = [];
+  for (const side of [-0.62, 0.62]) {
+    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 1.4, 5), mat(SNOW));
+    s.rotation.z = Math.PI / 2;
+    s.position.set(0, 0.355, side);
+    s.scale.setScalar(0.001);
+    s.castShadow = true;
+    g.add(s);
+    snow.push(s);
+  }
+  g.userData.snow = snow;
   return g;
 }
 
@@ -144,6 +178,11 @@ export function buildLandmarks(island, mode = "island") {
   br.rotation.y = Math.atan2(2.6 - (-0.9), -4.2 - (-5.2)) + Math.PI / 2;
   group.add(br);
 
+  // snow that builds up on the landmarks as winter deepens. temple caps keep
+  // their tiers' scale.z squash; lantern/bridge snow scales uniformly.
+  const templeSnow = t.userData.snow;
+  const uniformSnow = [...lantern.userData.snow, ...br.userData.snow];
+
   const spots = {
     garden: { position: new THREE.Vector3(1.8, 0, -1.9), facing: -0.9 },   // at the garden's near edge, rake in hand
     temple: { position: new THREE.Vector3(3.35, 0, -2.55), facing: Math.PI * 0.78 }, // kneeling before the steps, clear of the roof overhang
@@ -154,6 +193,14 @@ export function buildLandmarks(island, mode = "island") {
     const l = lantern.userData;
     l.light.intensity = ws.night * 1.6;
     l.glow.material.emissiveIntensity = ws.night * 1.1;
+
+    // winter snow accumulation — mirrors water.js's frozen ramp so it eases in
+    // and out over the 20s season fade, vanishing completely outside winter
+    const winterAmt = ws.season === "winter" ? 1 - ws.seasonBlend
+      : ws.nextSeason === "winter" ? ws.seasonBlend : 0;
+    const s = Math.max(0.001, winterAmt);
+    for (const cap of templeSnow) cap.scale.set(s, s, s * 0.82);
+    for (const snow of uniformSnow) snow.scale.setScalar(s);
   }
 
   return { spots, update };
