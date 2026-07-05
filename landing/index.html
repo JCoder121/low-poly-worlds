@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>low-poly worlds</title>
+  <meta name="description" content="A small atlas of low-poly living postcards." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗺️</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="loader" aria-hidden="true">
+    <div class="loader-inner">
+      <div class="loader-mon">🗺️</div>
+      <h1 class="loader-name">low-poly worlds</h1>
+      <div class="loader-bar"><div class="loader-fill" id="loader-fill"></div></div>
+      <p class="loader-msg" id="loader-msg">unrolling the map…</p>
+    </div>
+  </div>
+
+  <canvas id="scene"></canvas>
+
+  <header class="wordmark">
+    <span class="wordmark-en">low-poly worlds</span>
+    <span class="wordmark-sub">a small atlas</span>
+  </header>
+
+  <p class="hint">click a marker to visit</p>
+  <a class="off-world-link" href="off-world.html">off-world ↗</a>
+  <div id="marker-label"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

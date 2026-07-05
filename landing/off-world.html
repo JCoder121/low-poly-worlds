@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>off-world · low-poly worlds</title>
+  <meta name="description" content="Fantasy dioramas, coming later." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪐</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+  <link rel="stylesheet" href="/src/off-world.css" />
+</head>
+<body class="off-world">
+  <div id="loader" aria-hidden="true">
+    <div class="loader-inner">
+      <div class="loader-mon">🪐</div>
+      <h1 class="loader-name">off-world</h1>
+      <div class="loader-bar"><div class="loader-fill" id="loader-fill"></div></div>
+      <p class="loader-msg" id="loader-msg">peering past the edge of the map…</p>
+    </div>
+  </div>
+
+  <canvas id="scene"></canvas>
+
+  <header class="wordmark">
+    <span class="wordmark-en">off-world</span>
+    <span class="wordmark-sub">fantasy dioramas, coming later</span>
+  </header>
+
+  <div class="off-world-copy">
+    <p>Cosmere. Red Rising. Whatever's next.</p>
+    <p class="off-world-small">one low-poly galaxy per universe — not built yet.</p>
+  </div>
+
+  <a class="off-world-link" href="./">← back to the map</a>
+
+  <script type="module" src="/src/off-world.js"></script>
+</body>
+</html>

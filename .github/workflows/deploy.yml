@@ -1,0 +1,67 @@
+name: Deploy Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [landing, musashi-homepage, sparrows-wake]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+      - run: npm ci
+        working-directory: ${{ matrix.app }}
+      - run: npm run build
+        working-directory: ${{ matrix.app }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.app }}
+          path: ${{ matrix.app }}/dist
+
+  assemble:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all app builds
+        uses: actions/download-artifact@v4
+        with:
+          path: builds
+
+      - name: Assemble into _site (landing at root, others at their subpaths)
+        run: |
+          mkdir -p _site/musashi-homepage _site/sparrows-wake
+          cp -r builds/dist-landing/. _site/
+          cp -r builds/dist-musashi-homepage/. _site/musashi-homepage/
+          cp -r builds/dist-sparrows-wake/. _site/sparrows-wake/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: assemble
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

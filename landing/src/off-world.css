@@ -1,0 +1,35 @@
+/* off-world page: same UI grammar, dark starfield instead of the atlas */
+body.off-world {
+  --parchment: #10152a;
+  background: var(--parchment);
+  color: #d8dce8;
+}
+body.off-world .wordmark-en,
+body.off-world .loader-name { color: #eceef5; }
+body.off-world .wordmark-sub,
+body.off-world .loader-msg,
+body.off-world .off-world-small { color: rgba(216, 220, 232, 0.6); }
+body.off-world .loader-bar { background: rgba(216, 220, 232, 0.25); }
+body.off-world .off-world-link { color: rgba(216, 220, 232, 0.7); }
+body.off-world .off-world-link:hover { color: #eceef5; }
+
+.off-world-copy {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.6rem;
+  pointer-events: none;
+  font-family: "IM Fell English", serif;
+  font-size: 1.3rem;
+}
+.off-world-small {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
