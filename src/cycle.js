@@ -44,12 +44,16 @@ export class Cycle {
     this.speed = reducedMotion ? 0 : q.has("speed") && !isNaN(sp) ? Math.max(0, sp) : 1; // "?speed=0" must freeze
 
     const tq = Number(q.get("time"));
-    this.dayT = q.has("time") && !isNaN(tq) ? wrap01(tq) : DUSK;
+    this.dayT = q.has("time") && !isNaN(tq) ? wrap01(tq) : Math.random(); // random time-of-day on a fresh load
     const s = q.get("season");
-    this.seasonIndex = s == null ? 0
+    this.seasonIndex = s == null ? Math.floor(Math.random() * 4) // random season on a fresh load
       : isNaN(Number(s)) ? Math.max(0, SEASONS.indexOf(s))
       : ((Number(s) % 4) + 4) % 4;
-    this.seasonTime = 0; // seconds into current season
+    // random position within the season on a fresh load; a pinned ?season= starts
+    // at 0 so tests get a full, stable season (SEASON_FADE margin keeps us clear
+    // of the cross-fade at either boundary)
+    const seasonLen = DAY_LENGTH * DAYS_PER_SEASON;
+    this.seasonTime = s == null ? Math.random() * (seasonLen - SEASON_FADE * 2) : 0;
     this.stars = null;
     this.state = {};
     this._recompute();

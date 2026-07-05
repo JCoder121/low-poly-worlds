@@ -85,11 +85,12 @@ if (!reducedMotion) {
 // ---------- world & actors ----------
 
 const world = buildWorld(scene, mode);
-const weather = new Weather(scene, world.treePosition, reducedMotion);
+// cycle first: it picks the (random) opening season, which weather seeds from
+const cycle = new Cycle({ reducedMotion });
+const weather = new Weather(scene, world.treePosition, reducedMotion, cycle.state.season);
 const landmarks = buildLandmarks(world.island, mode);
 const water = buildWater(world.island, mode);
 
-const cycle = new Cycle({ reducedMotion });
 // expanse's ground fills the whole frame (no sky gap above an island edge to
 // hang stars in), so the star field would just be a dead draw call there.
 if (mode !== "expanse") cycle.addStars(scene, camera); // camera framed + positioned above

@@ -4,7 +4,6 @@
 // season's particles thin out as they land and dissolve rather than popping.
 import * as THREE from "three";
 import { COLORS } from "./world.js";
-import { SEASONS } from "./cycle.js";
 
 // Falling particle config per season. size=[w,h], fall=[base,range] (speed),
 // count scales density, area picks the spawn volume. summer has no fall system.
@@ -16,7 +15,7 @@ const FALL_CONFIGS = {
 };
 
 export class Weather {
-  constructor(scene, treePosition, reducedMotion) {
+  constructor(scene, treePosition, reducedMotion, initialSeason) {
     this.tree = treePosition.clone ? treePosition.clone() : treePosition;
     this.reduced = reducedMotion;
     this.max = reducedMotion ? 30 : 110;
@@ -29,11 +28,10 @@ export class Weather {
     this.fall = new THREE.InstancedMesh(geo, material, this.max);
     this.fall.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.fall.frustumCulled = false;
-    // seed with the season we actually open on (same URL parse as cycle.js), so
-    // no stray spring petals bleed into an autumn/winter/summer first load
-    const sq = new URLSearchParams(location.search).get("season");
-    const sIdx = sq == null ? 0 : isNaN(Number(sq)) ? Math.max(0, SEASONS.indexOf(sq)) : ((Number(sq) % 4) + 4) % 4;
-    this.items = Array.from({ length: this.max }, () => this.spawn(FALL_CONFIGS[SEASONS[sIdx]], true));
+    // seed with the season the cycle actually opens on (passed in, so it stays in
+    // sync with the cycle's random default), so no stray spring petals bleed into
+    // an autumn/winter/summer first load
+    this.items = Array.from({ length: this.max }, () => this.spawn(FALL_CONFIGS[initialSeason], true));
     for (let i = 0; i < this.max; i++) {
       const p = this.items[i];
       this.fall.setColorAt(i, this._col.setHex(p.cfg ? p.color : 0xffffff));
