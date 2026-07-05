@@ -6,10 +6,38 @@ import { COLORS, mat } from "./world.js";
 const KIMONO = 0x3a4a73; // lifted ink navy — dark enough to read as ink, light enough to keep its shape in shadow
 const KIMONO_DARK = 0x1c2333;
 
-// mirrors the Fire's world position (x, z) in main.js / world.js; his walking
-// paths must clear the pit by KEEPOUT so he never crosses the flames.
-const FIRE = new THREE.Vector2(0.9, 0.2);
-const KEEPOUT = 1.0;
+// static keep-outs (world x, z, radius). Endpoints are exempt (several spots
+// legitimately sit at an obstacle's edge: fire-side zazen, raking, praying,
+// misogi at the pond rim).
+const OBSTACLES = [
+  { x: 0.9,  z: 0.2,  r: 1.0  }, // fire pit
+  { x: -2.2, z: 5.9,  r: 1.45 }, // koi pond
+  { x: 1.6,  z: -3.0, r: 1.15 }, // zen garden (a sibling moves it here)
+  { x: 4.4,  z: -3.7, r: 1.15 }, // temple
+  { x: -2.3, z: -1.2, r: 0.5  }, // sakura trunk
+];
+// the river's course (mirrors water.js's curve control points); walks must not
+// wade across it — the corridor is a polyline keep-out of half-width RIVER_HALF.
+const RIVER = [[-6.6, -3.4], [-5.2, -0.9], [-4.2, 2.6], [-3.3, 4.3], [-2.55, 5.5]];
+const RIVER_HALF = 0.55;
+
+// nearest point on the river polyline to (x, z), plus the local segment
+// direction there — used to keep his walks out of the water.
+function riverNearest(x, z) {
+  let best = null, bestD2 = Infinity;
+  for (let i = 0; i < RIVER.length - 1; i++) {
+    const [ax, az] = RIVER[i], [bx, bz] = RIVER[i + 1];
+    const dx = bx - ax, dz = bz - az;
+    const len2 = dx * dx + dz * dz || 1e-9;
+    let s = ((x - ax) * dx + (z - az) * dz) / len2;
+    s = Math.max(0, Math.min(1, s));
+    const px = ax + s * dx, pz = az + s * dz;
+    const d2 = (x - px) ** 2 + (z - pz) ** 2;
+    if (d2 < bestD2) { bestD2 = d2; best = { px, pz, dx, dz }; }
+  }
+  best.dist = Math.sqrt(bestD2);
+  return best;
+}
 
 function limb(radius, length, color) {
   const g = new THREE.Group();
@@ -202,16 +230,35 @@ export class Musashi {
     this.knife.position.y = -0.38;
     this.armR.add(this.knife);
 
+    // shinobue: a thin bamboo tube with a couple of darker binding rings, held
+    // to the lips during flute. parented to the right hand like the cup/knife.
+    this.flute = new THREE.Group();
+    const bamboo = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.34, 6), mat(0x8a9a5b));
+    for (const ry of [0.09, -0.06]) {
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.012, 6), mat(0x5c6838));
+      ring.position.y = ry;
+      this.flute.add(ring);
+    }
+    this.flute.add(bamboo);
+    this.flute.visible = false;
+    // laid horizontal across the mouth; local pose eyeballed off the tea-cup
+    // arm numbers so the tube reads as touching the lips when the arms are up.
+    this.flute.position.set(-0.02, -0.33, 0);
+    this.flute.rotation.set(0, 0, 1.5);
+    this.armR.add(this.flute);
+
     this.hideProps = () => {
-      this.tea.visible = this.cup.visible = this.rake.visible = this.bokken.visible = this.knife.visible = false;
+      this.tea.visible = this.cup.visible = this.rake.visible =
+        this.bokken.visible = this.knife.visible = this.flute.visible = false;
     };
 
     parent.add(this.root);
 
-    this.activities = ["zazen", "kata", "reading", "painting", "tea", "raking", "temple", "misogi", "carving", "bridge"];
+    this.activities = ["zazen", "kata", "reading", "painting", "tea", "raking", "temple", "misogi", "carving", "bridge", "flute"];
     this.SPOT_FOR = {
       zazen: "fire", tea: "fire", kata: "kata", reading: "tree", carving: "tree",
       painting: "easel", raking: "garden", temple: "temple", misogi: "misogi", bridge: "bridge",
+      flute: "flute",
     };
     const q = new URLSearchParams(location.search);
     this.current = this.activities.includes(q.get("activity")) ? q.get("activity") : "zazen";
@@ -220,6 +267,7 @@ export class Musashi {
     this.activityDuration = q.has("duration") && !isNaN(dq) && dq > 0 ? dq : 75;
     this.phase = "settled"; // settled | walking | settling
     this.walk = null; // { curve, length, dist, target }
+    this._dodge = 0; // eased sidestep offset (m) around a passing traveler
     this.reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.applyActivity(this.current);
   }
@@ -304,11 +352,18 @@ export class Musashi {
       this.armL.rotation.set(0.15, 0, 0.18);
       this.armR.rotation.set(0.15, 0, -0.18);
       this.headGroup.rotation.x = 0.35; // watching the water below
+    } else if (name === "flute") {
+      // seated on the rock, flute held across to the lips: right arm raised
+      // high, left arm up to meet it, head tilted a touch into the tube
+      this.flute.visible = true;
+      this.armR.rotation.set(1.5, 0, -0.5);
+      this.armL.rotation.set(1.35, 0, 0.55);
+      this.headGroup.rotation.set(0.05, 0, 0.06);
     }
   }
 
   pickNext(ws) {
-    const NIGHT_SET = ["zazen", "tea", "reading"];
+    const NIGHT_SET = ["zazen", "tea", "reading", "flute"];
     let pool = ws && ws.night > 0.5 ? NIGHT_SET : this.activities;
     pool = pool.filter((a) => a !== this.current);
     // several activities share a spot (zazen/tea @ fire, reading/carving @ tree) —
@@ -333,43 +388,74 @@ export class Musashi {
     }
     pts.push(to);
 
-    // walk AROUND the fire: shove any intermediate waypoint that falls inside the
-    // keepout radially out to exactly KEEPOUT. endpoints are left alone — the
-    // fire-side spots legitimately stand ~0.7 from the pit.
-    const pushOut = (p, radius) => {
-      const off = new THREE.Vector2(p.x - FIRE.x, p.z - FIRE.y);
+    // walk AROUND the keep-outs: shove any intermediate waypoint that falls
+    // inside a circle radially out to its rim, and any that falls in the river
+    // corridor out perpendicular to the water. endpoints are left alone — the
+    // fire-side / pond-rim spots legitimately stand at an obstacle's edge.
+    const pushCircle = (p, o, radius) => {
+      const off = new THREE.Vector2(p.x - o.x, p.z - o.z);
       if (off.lengthSq() < 1e-8) off.set(1, 0);
       off.setLength(radius);
-      p.x = FIRE.x + off.x;
-      p.z = FIRE.y + off.y;
+      p.x = o.x + off.x;
+      p.z = o.z + off.y;
+    };
+    // push out of the river to `half`, perpendicular to the nearest segment, on
+    // the side the point already sits; if it's ~on the line use the eastward
+    // (positive-x) perpendicular — every spot lies east of the water, so this
+    // resolves consistently.
+    const pushRiver = (p, half) => {
+      const n = riverNearest(p.x, p.z);
+      let ox = p.x - n.px, oz = p.z - n.pz;
+      if (ox * ox + oz * oz < 1e-8) {
+        ox = -n.dz; oz = n.dx; // perpendicular to the segment
+        if (ox < 0) { ox = -ox; oz = -oz; } // choose the eastward normal
+      }
+      const len = Math.hypot(ox, oz) || 1e-9;
+      p.x = n.px + (ox / len) * half;
+      p.z = n.pz + (oz / len) * half;
     };
     for (let i = 1; i < pts.length - 1; i++) {
-      if (new THREE.Vector2(pts[i].x - FIRE.x, pts[i].z - FIRE.y).length() < KEEPOUT) pushOut(pts[i], KEEPOUT);
+      for (const o of OBSTACLES) {
+        if (Math.hypot(pts[i].x - o.x, pts[i].z - o.z) < o.r) pushCircle(pts[i], o, o.r);
+      }
+      if (riverNearest(pts[i].x, pts[i].z).dist < RIVER_HALF) pushRiver(pts[i], RIVER_HALF);
     }
     let curve = new THREE.CatmullRomCurve3(pts);
     // CatmullRom overshoots its waypoints, so verify by sampling: if the swept
-    // path still grazes the pit (ignoring the endpoint tails), nudge the nearest
-    // intermediate waypoint further out and rebuild. a few iterations suffice.
-    for (let iter = 0; iter < 3; iter++) {
-      let near = null, nearD = Infinity;
+    // path still bites into a circle (< r·0.6) or the river corridor (< 0.35),
+    // ignoring the endpoint tails, nudge the nearest intermediate waypoint
+    // further clear of the worst offender and rebuild. a few iterations suffice.
+    for (let iter = 0; iter < 4; iter++) {
+      let worst = null; // { q, sev, river, o }
       for (let s = 0; s <= 24; s++) {
         const u = s / 24;
         if (u < 0.1 || u > 0.9) continue;
         const q = curve.getPoint(u);
-        const d = Math.hypot(q.x - FIRE.x, q.z - FIRE.y);
-        if (d < nearD) { nearD = d; near = q; }
+        for (const o of OBSTACLES) {
+          const sev = o.r * 0.6 - Math.hypot(q.x - o.x, q.z - o.z);
+          if (sev > 0 && (!worst || sev > worst.sev)) worst = { q, sev, river: false, o };
+        }
+        const sev = 0.35 - riverNearest(q.x, q.z).dist;
+        if (sev > 0 && (!worst || sev > worst.sev)) worst = { q, sev, river: true };
       }
-      if (nearD >= 0.55) break;
+      if (!worst) break;
       let wi = 1, wd = Infinity;
       for (let i = 1; i < pts.length - 1; i++) {
-        const d = Math.hypot(pts[i].x - near.x, pts[i].z - near.z);
+        const d = Math.hypot(pts[i].x - worst.q.x, pts[i].z - worst.q.z);
         if (d < wd) { wd = d; wi = i; }
       }
-      const cur = new THREE.Vector2(pts[wi].x - FIRE.x, pts[wi].z - FIRE.y).length();
-      pushOut(pts[wi], Math.max(KEEPOUT, cur) + 0.3);
+      if (worst.river) {
+        const cur = riverNearest(pts[wi].x, pts[wi].z).dist;
+        pushRiver(pts[wi], Math.max(RIVER_HALF, cur) + 0.3);
+      } else {
+        const o = worst.o;
+        const cur = Math.hypot(pts[wi].x - o.x, pts[wi].z - o.z);
+        pushCircle(pts[wi], o, Math.max(o.r, cur) + 0.3);
+      }
       curve = new THREE.CatmullRomCurve3(pts);
     }
     this.walk = { curve, length: curve.getLength(), dist: 0, target };
+    this._dodge = 0; // no leftover sidestep from a previous walk
     this.phase = "walking";
     this.scroll.visible = this.easel.visible = this.heldKatana.visible = false;
     this.hideProps();
@@ -383,13 +469,28 @@ export class Musashi {
     if (this.onWalkStart) this.onWalkStart(this.SPOT_FOR[target]);
   }
 
-  updateWalk(dt, t) {
+  updateWalk(dt, t, avoid = null) {
     const w = this.walk;
     w.dist = Math.min(w.length, w.dist + dt * 0.85); // graceful pace, ~m/s
     const u = w.dist / w.length;
     const p = w.curve.getPointAt(Math.min(1, u));
     const tangent = w.curve.getTangentAt(Math.min(1, u));
-    this.root.position.set(p.x, Math.abs(Math.sin(t * 6)) * 0.025, p.z);
+    // soft sidestep around a passing traveler: shift perpendicular to the walk
+    // by up to ~0.54m, on the side that moves him away. eased so it doesn't pop
+    // when the traveler appears/vanishes; applied to the rendered position only
+    // (the curve is untouched) so he flows around and rejoins his path.
+    let target = 0;
+    if (avoid) {
+      const d = Math.hypot(p.x - avoid.x, p.z - avoid.z);
+      if (d < 0.9) {
+        const px = -tangent.z, pz = tangent.x; // unit perpendicular to the walk
+        const side = Math.sign((p.x - avoid.x) * px + (p.z - avoid.z) * pz) || 1;
+        target = side * (0.9 - d) * 0.6;
+      }
+    }
+    this._dodge += (target - this._dodge) * Math.min(1, dt * 4);
+    const ox = -tangent.z * this._dodge, oz = tangent.x * this._dodge;
+    this.root.position.set(p.x + ox, Math.abs(Math.sin(t * 6)) * 0.025, p.z + oz);
     this.root.rotation.y = Math.atan2(tangent.x, tangent.z);
     this.body.rotation.z = Math.sin(t * 6) * 0.03;
     this.armL.rotation.x = Math.sin(t * 6) * 0.35;
@@ -404,7 +505,7 @@ export class Musashi {
     }
   }
 
-  update(dt, t, ws) {
+  update(dt, t, ws, avoid = null) {
     this.activityTime += dt;
 
     if (this.phase === "settled" && this.activityTime > this.activityDuration) {
@@ -418,7 +519,7 @@ export class Musashi {
         this.startWalk(next);
       }
     }
-    if (this.phase === "walking") { this.updateWalk(dt, t); return; }
+    if (this.phase === "walking") { this.updateWalk(dt, t, avoid); return; }
     if (this.phase === "settling") { this.phase = "settled"; }
 
     // ---- per-activity idle motion ----
@@ -507,6 +608,9 @@ export class Musashi {
       this.armR.rotation.x = 0.95 + Math.max(0, stroke) * 0.22; // whittling pushes
     } else if (a === "bridge") {
       this.headGroup.rotation.y = Math.sin(t * 0.2) * 0.15; // following the current
+    } else if (a === "flute") {
+      this.body.rotation.z = Math.sin(t * 0.4) * 0.01; // a slow, quiet sway
+      this.armL.rotation.x = 1.35 + Math.sin(t * 12.5) * 0.02; // implied fingering, ~2 Hz
     }
   }
 }
