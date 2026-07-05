@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>musashi's hill</title>
+  <meta name="description" content="A small clearing on a hill. Musashi trains, travelers pass." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌸</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body data-mode="expanse">
+  <!-- themed loader, an homage to the atlas -->
+  <div id="loader" aria-hidden="true">
+    <div class="loader-inner">
+      <div class="loader-mon">
+        <svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true">
+          <!-- two crossed bokken under a blossom -->
+          <circle cx="32" cy="20" r="9" fill="#F2B8C6"/>
+          <circle cx="24" cy="24" r="6" fill="#FBDCE4"/>
+          <circle cx="40" cy="24" r="6" fill="#FBDCE4"/>
+          <rect x="14" y="42" width="36" height="3.5" rx="1.75" fill="#1C2333" transform="rotate(18 32 44)"/>
+          <rect x="14" y="42" width="36" height="3.5" rx="1.75" fill="#1C2333" transform="rotate(-18 32 44)"/>
+        </svg>
+      </div>
+      <h1 class="loader-name">武蔵の丘</h1>
+      <div class="loader-bar"><div class="loader-fill" id="loader-fill"></div></div>
+      <p class="loader-msg" id="loader-msg">raking the hillside…</p>
+    </div>
+  </div>
+
+  <canvas id="scene"></canvas>
+
+  <header class="wordmark">
+    <span class="wordmark-en">musashi's hill</span>
+    <span class="wordmark-season" id="season">spring</span>
+  </header>
+
+  <!-- speech bubbles get appended here -->
+  <div id="bubbles"></div>
+
+  <a class="mode-toggle" href="./island.html">island ↗</a>
+  <button class="live-toggle" id="live-toggle">live ↗</button>
+  <button class="sound-toggle" id="sound-toggle">sound ↗</button>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
