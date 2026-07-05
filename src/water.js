@@ -168,20 +168,17 @@ export function buildWater(island, mode = "island") {
   const group = new THREE.Group();
   island.add(group);
 
-  // river: NW edge → a long winding course under the bridge → into the koi
-  // pond, all at grade. The bridge crossing (-4.2, 2.6) sits ~midway along the
-  // arc (fraction 0.57); the tail ends inside the pond disc so the two surfaces
-  // overlap and share the same mirror tint (no visible seam).
+  // river: NW edge → a relatively straight, gently curved course under the
+  // bridge → into the koi pond, all at grade. The bridge still crosses at
+  // (-4.2, 2.6); the last two points extend the same heading down to the
+  // relocated (lower-on-screen) pond, ending inside the pond disc so the two
+  // surfaces overlap and share the same mirror tint (no visible seam).
   const riverCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-6.5, 0, -2.8),
-    new THREE.Vector3(-5.6, 0, -1.4),
-    new THREE.Vector3(-6.0, 0, 0.3),
-    new THREE.Vector3(-4.9, 0, 1.4),
+    new THREE.Vector3(-6.6, 0, -3.4),
+    new THREE.Vector3(-5.2, 0, -0.9),
     new THREE.Vector3(-4.2, 0, 2.6),
-    new THREE.Vector3(-3.25, 0, 3.25),
-    new THREE.Vector3(-4.35, 0, 4.1),
-    new THREE.Vector3(-3.5, 0, 5.15),
-    new THREE.Vector3(-2.75, 0, 5.05),
+    new THREE.Vector3(-3.3, 0, 4.3),
+    new THREE.Vector3(-2.55, 0, 5.5),
   ]);
   const riverSurf = buildLanedRibbon(riverCurve, 0.55, 160, 4);
   riverSurf.mesh.position.y = 0.035; // slightly above ground, below the path
@@ -214,8 +211,8 @@ export function buildWater(island, mode = "island") {
   banks.position.y = 0.028;
   group.add(banks);
 
-  // ---- koi pond / lake at POND_CENTER (world -2.4, 5.2), sitting at grade ----
-  const PX = -2.4, PZ = 5.2;
+  // ---- koi pond / lake at POND_CENTER (world -2.2, 5.9), sitting at grade ----
+  const PX = -2.2, PZ = 5.9;
 
   // pond water disc: embedded just above the ground like the road (top face at
   // y 0.06, same as the river's swell peak). Only the river ribbon and this
@@ -227,8 +224,9 @@ export function buildWater(island, mode = "island") {
   pond.position.set(PX, 0.03, PZ);
   group.add(pond);
 
-  // ripple rings: 3 cycling outward from where the river feeds the pond
-  const RING_ORIGIN = new THREE.Vector3(-3.45, 0.075, 5.17);
+  // ripple rings: 3 cycling outward from where the river crosses the pond rim
+  // (curve.getPointAt where dist to pond center ≈ 1.05)
+  const RING_ORIGIN = new THREE.Vector3(-2.83, 0.075, 5.06);
   const ringGeo = new THREE.RingGeometry(0.9, 1.0, 20);
   const rings = [0, 1, 2].map(() => {
     const m = new THREE.Mesh(
@@ -275,8 +273,9 @@ export function buildWater(island, mode = "island") {
   const dummy = new THREE.Object3D();
 
   const spots = {
-    // musashi stands in the pond shallows, facing the river's inflow
-    misogi: { position: new THREE.Vector3(-2.6, 0, 4.75), facing: -1.12 },
+    // musashi stands in the pond shallows facing the inflow (0.72 in from the
+    // rim, far side of the ring origin); facing = atan2(ringX-posX, ringZ-posZ)
+    misogi: { position: new THREE.Vector3(-2.05, 0, 5.55), facing: -2.131 },
   };
 
   function update(dt, t2, ws) {
