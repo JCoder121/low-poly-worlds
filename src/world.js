@@ -163,6 +163,17 @@ function torii() {
   nuki.position.y = 0.88;
   nuki.castShadow = true;
   g.add(kasagi, nuki);
+
+  // winter snow cap resting on the kasagi — hidden (scale.y 0) until winter
+  const snowCap = new THREE.Mesh(
+    new THREE.BoxGeometry(1.25, 0.045, 0.15),
+    mat(0xf4f2ec)
+  );
+  snowCap.position.y = 1.16 + 0.09 / 2 + 0.045 / 2; // sits on top of the kasagi
+  snowCap.scale.y = 0.001;
+  snowCap.castShadow = true;
+  g.add(snowCap);
+  g.userData.snowCap = snowCap;
   return g;
 }
 
@@ -328,7 +339,7 @@ export function makePathCurve(mode = "island", edgeRadiusAt = null) {
     // trim the two island endpoints onto the actual generated cliff edge, so the
     // ribbon meets the rim cleanly instead of over/under-shooting the blob
     for (const p of [points[0], points[points.length - 1]]) {
-      const target = edgeRadiusAt(Math.atan2(p.z, p.x)) - 0.12;
+      const target = edgeRadiusAt(Math.atan2(p.z, p.x));
       const len = Math.hypot(p.x, p.z);
       p.x = (p.x / len) * target;
       p.z = (p.z / len) * target;
@@ -337,7 +348,7 @@ export function makePathCurve(mode = "island", edgeRadiusAt = null) {
   return new THREE.CatmullRomCurve3(points);
 }
 
-function pathRibbon(curve) {
+function pathRibbon(curve, edgeRadiusAt = null) {
   const samples = 60;
   const width = 0.72;
   const positions = [];
@@ -356,6 +367,20 @@ function pathRibbon(curve) {
       pt.x + normal.x * wobble, pt.z + normal.z * wobble,
       pt.x - normal.x * wobble, pt.z - normal.z * wobble,
     ]);
+  }
+  // On the island, pin the two end rows' edge vertices to the cliff rim at each
+  // vertex's own bearing, so the road's end follows the arc of the cliff instead
+  // of cutting straight across just inside it (matches the river's blended entry).
+  if (edgeRadiusAt) {
+    for (const row of [edge[0], edge[samples]]) {
+      for (let k = 0; k < 4; k += 2) {
+        const vx = row[k], vz = row[k + 1];
+        const target = edgeRadiusAt(Math.atan2(vz, vx)) - 0.02;
+        const len = Math.hypot(vx, vz) || 1;
+        row[k] = (vx / len) * target;
+        row[k + 1] = (vz / len) * target;
+      }
+    }
   }
   for (let i = 0; i < samples; i++) {
     const [ax, az, bx, bz] = edge[i];
@@ -383,17 +408,17 @@ export function buildWorld(scene, mode = "island") {
     // three tiers tapering strictly DOWNWARD like a floating sky island (Laputa),
     // each tier's lid meeting the tier above; variance grows toward the foot for
     // a more rugged underside.
-    const top = islandLayer(7.6, 0.10, 1.6, COLORS.moss, COLORS.cliff);
+    const top = islandLayer(8.1, 0.10, 1.6, COLORS.moss, COLORS.cliff);
     top.position.y = -1.6; // top face stays at world y=0
     island.add(top);
     topMaterial = top.material[0];
     edgeRadiusAt = makeRadiusAt(top.userData.outline);
 
-    const mid = islandLayer(6.5, 0.18, 1.45, COLORS.cliff, COLORS.cliffDark);
+    const mid = islandLayer(7.0, 0.18, 1.45, COLORS.cliff, COLORS.cliffDark);
     mid.position.y = -3.05; // lid at y=-1.6 meets the top tier's base
     island.add(mid);
 
-    const foot = islandLayer(5.0, 0.28, 1.15, COLORS.cliffDark, COLORS.cliffDark);
+    const foot = islandLayer(5.4, 0.28, 1.15, COLORS.cliffDark, COLORS.cliffDark);
     foot.position.set(0.3, -4.2, -0.2); // slight offset so the stack isn't machine-perfect
     island.add(foot);
 
@@ -407,7 +432,7 @@ export function buildWorld(scene, mode = "island") {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 256, 256);
     const shadow = new THREE.Mesh(
-      new THREE.PlaneGeometry(15, 12),
+      new THREE.PlaneGeometry(16, 13),
       new THREE.MeshBasicMaterial({
         map: new THREE.CanvasTexture(shadowCanvas),
         transparent: true,
@@ -475,6 +500,7 @@ export function buildWorld(scene, mode = "island") {
     );
   }
   const pineTargets = [];
+  const swayPines = []; // wind sway targets: whole pine group + baked phase/amp
   for (const [x, z, h] of pinePlacements) {
     const coneColor = Math.random() < 0.5 ? COLORS.mossDark : COLORS.moss;
     const p = pineTree(h, coneColor);
@@ -483,6 +509,7 @@ export function buildWorld(scene, mode = "island") {
     island.add(p);
     // pineTree adds [trunk, cone]; register the cone material with its own base
     pineTargets.push({ material: p.children[1].material, key: "pine", base: coneColor, lighten: false });
+    swayPines.push({ group: p, phase: Math.random() * Math.PI * 2, amp: 0.05 + Math.random() * 0.04 });
   }
 
   // rocks near the clearing
@@ -497,11 +524,30 @@ export function buildWorld(scene, mode = "island") {
   island.add(tree);
 
   const curve = makePathCurve(mode, edgeRadiusAt);
-  island.add(pathRibbon(curve));
+  island.add(pathRibbon(curve, edgeRadiusAt));
 
   const gate = torii();
-  gate.position.set(-6.9, 0, 1.85);
-  gate.rotation.y = Math.PI / 2 - 0.25; // straddles the path near its west end
+  if (mode === "island" && edgeRadiusAt) {
+    // stand the gate ON the trimmed curve near its west end, so it always
+    // straddles the road wherever the random rim moves the road's end. Scan in
+    // from u=0 to the first sample sitting ~0.7 inside the rim at its bearing.
+    const gp = new THREE.Vector3();
+    const gt = new THREE.Vector3();
+    let gu = 0.06;
+    for (let s = 0; s <= 40; s++) {
+      const u = s / 400; // 0 .. 0.1 across the west end
+      curve.getPoint(u, gp);
+      const rim = edgeRadiusAt(Math.atan2(gp.z, gp.x));
+      if (Math.hypot(gp.x, gp.z) <= rim - 0.7) { gu = u; break; }
+    }
+    curve.getPoint(gu, gp);
+    curve.getTangent(gu, gt);
+    gate.position.set(gp.x, 0, gp.z);
+    gate.rotation.y = Math.atan2(gt.x, gt.z); // post axis perpendicular to road
+  } else {
+    gate.position.set(-6.9, 0, 1.85);
+    gate.rotation.y = Math.PI / 2 - 0.25; // straddles the path near its west end
+  }
   island.add(gate);
 
   scene.add(island);
@@ -513,6 +559,7 @@ export function buildWorld(scene, mode = "island") {
   // drifts as it is lerped every frame). Hills map h1->hl, h2->hd.
   const cherryBlobs = tree.userData.blobs;
   const snowCaps = tree.userData.snowCaps;
+  const toriiSnowCap = gate.userData.snowCap; // winter cap on the kasagi
   const tintTargets = [
     { material: topMaterial, key: "top", base: COLORS.moss, lighten: false },
     { material: h1.material, key: "hl", base: COLORS.mossLight, lighten: false },
@@ -547,8 +594,24 @@ export function buildWorld(scene, mode = "island") {
       const winterAmt = ws.season === "winter" ? 1 - b : ws.nextSeason === "winter" ? b : 0;
       for (const blob of cherryBlobs) blob.scale.setScalar(Math.max(0.001, 1 - winterAmt));
       for (const cap of snowCaps) cap.scale.setScalar(Math.max(0.001, winterAmt));
+      // torii accumulates a matching cap on the kasagi (grow scale.y only)
+      if (toriiSnowCap) toriiSnowCap.scale.y = Math.max(0.001, winterAmt);
     },
   };
 
-  return { island, fire, curve, treePosition: tree.position.clone(), seasons };
+  // ---- wind ----
+  // A sibling drives gust strength (0..1); we lean the pines and cherry tree in
+  // the +x direction the petals drift, layered on top of each element's baked
+  // rest pose so strength 0 returns everything exactly to base. A breath, not a
+  // storm.
+  const sakuraBaseRotZ = tree.rotation.z;
+  function wind(strength, t) {
+    const s = strength || 0;
+    for (const sp of swayPines) {
+      sp.group.rotation.z = s * sp.amp * Math.sin(t * 2.2 + sp.phase);
+    }
+    tree.rotation.z = sakuraBaseRotZ + 0.03 * s * Math.sin(t * 2.2);
+  }
+
+  return { island, fire, curve, treePosition: tree.position.clone(), seasons, wind };
 }
