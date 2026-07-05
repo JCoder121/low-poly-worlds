@@ -50,22 +50,50 @@ export function jitterGeometry(geo, amount) {
   return geo;
 }
 
-function blobShape(radius, variance, points = 11) {
-  const shape = new THREE.Shape();
+// A blob boundary as sampled polar points {a (angle), r (radius)}, so the same
+// outline can drive both the extrude shape and a road-trimming interpolator.
+function blobOutline(radius, variance, points = 11) {
+  const outline = [];
   for (let i = 0; i < points; i++) {
     const a = (i / points) * Math.PI * 2;
     const r = radius * (1 + (Math.random() - 0.5) * variance);
+    outline.push({ a, r });
+  }
+  return outline;
+}
+
+function shapeFromOutline(outline) {
+  const shape = new THREE.Shape();
+  outline.forEach(({ a, r }, i) => {
     const x = Math.cos(a) * r;
     const y = Math.sin(a) * r;
     if (i === 0) shape.moveTo(x, y);
     else shape.lineTo(x, y);
-  }
+  });
   shape.closePath();
   return shape;
 }
 
+// Linear interpolator over an outline, keyed by WORLD bearing. The extrude does
+// rotateX(-PI/2), mapping shape (x, y) -> world (x, -y), so a shape point at
+// angle a lands at world bearing -a. We therefore sample the outline at -theta.
+function makeRadiusAt(outline) {
+  const n = outline.length;
+  const step = (Math.PI * 2) / n;
+  return (thetaWorld) => {
+    let a = (-thetaWorld) % (Math.PI * 2);
+    if (a < 0) a += Math.PI * 2;
+    const f = a / step;
+    const i0 = Math.floor(f) % n;
+    const i1 = (i0 + 1) % n;
+    const t = f - Math.floor(f);
+    return outline[i0].r * (1 - t) + outline[i1].r * t;
+  };
+}
+
 function islandLayer(radius, variance, height, topColor, sideColor) {
-  const geo = new THREE.ExtrudeGeometry(blobShape(radius, variance), {
+  const outline = blobOutline(radius, variance);
+  const geo = new THREE.ExtrudeGeometry(shapeFromOutline(outline), {
     depth: height,
     bevelEnabled: false,
   });
@@ -74,6 +102,7 @@ function islandLayer(radius, variance, height, topColor, sideColor) {
   mesh.geometry.computeVertexNormals();
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+  mesh.userData.outline = outline; // captured so the road can meet the cliff edge
   return mesh;
 }
 
@@ -283,7 +312,7 @@ export class Fire {
 
 // ---------- path ----------
 
-export function makePathCurve(mode = "island") {
+export function makePathCurve(mode = "island", edgeRadiusAt = null) {
   const points = [
     new THREE.Vector3(-7.6, 0, 1.6),
     new THREE.Vector3(-4.2, 0, 2.6),
@@ -295,6 +324,15 @@ export function makePathCurve(mode = "island") {
   if (mode === "expanse") {
     points.unshift(new THREE.Vector3(-16, 0, 2.2));
     points.push(new THREE.Vector3(16, 0, 0.4));
+  } else if (edgeRadiusAt) {
+    // trim the two island endpoints onto the actual generated cliff edge, so the
+    // ribbon meets the rim cleanly instead of over/under-shooting the blob
+    for (const p of [points[0], points[points.length - 1]]) {
+      const target = edgeRadiusAt(Math.atan2(p.z, p.x)) - 0.12;
+      const len = Math.hypot(p.x, p.z);
+      p.x = (p.x / len) * target;
+      p.z = (p.z / len) * target;
+    }
   }
   return new THREE.CatmullRomCurve3(points);
 }
@@ -339,12 +377,25 @@ export function buildWorld(scene, mode = "island") {
   const island = new THREE.Group();
 
   let topMaterial; // ground/top-face material registered under tint key "top"
+  let edgeRadiusAt = null; // island top-rim radius by world bearing (road trim)
 
   if (mode === "island") {
+    // three tiers tapering strictly DOWNWARD like a floating sky island (Laputa),
+    // each tier's lid meeting the tier above; variance grows toward the foot for
+    // a more rugged underside.
     const top = islandLayer(7.6, 0.10, 1.6, COLORS.moss, COLORS.cliff);
     top.position.y = -1.6; // top face stays at world y=0
     island.add(top);
     topMaterial = top.material[0];
+    edgeRadiusAt = makeRadiusAt(top.userData.outline);
+
+    const mid = islandLayer(6.5, 0.18, 1.45, COLORS.cliff, COLORS.cliffDark);
+    mid.position.y = -3.05; // lid at y=-1.6 meets the top tier's base
+    island.add(mid);
+
+    const foot = islandLayer(5.0, 0.28, 1.15, COLORS.cliffDark, COLORS.cliffDark);
+    foot.position.set(0.3, -4.2, -0.2); // slight offset so the stack isn't machine-perfect
+    island.add(foot);
 
     // soft contact shadow on the paper, far below the floating island
     const shadowCanvas = document.createElement("canvas");
@@ -356,7 +407,7 @@ export function buildWorld(scene, mode = "island") {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 256, 256);
     const shadow = new THREE.Mesh(
-      new THREE.PlaneGeometry(17, 13.5),
+      new THREE.PlaneGeometry(15, 12),
       new THREE.MeshBasicMaterial({
         map: new THREE.CanvasTexture(shadowCanvas),
         transparent: true,
@@ -364,7 +415,7 @@ export function buildWorld(scene, mode = "island") {
       })
     );
     shadow.rotation.x = -Math.PI / 2;
-    shadow.position.y = -3.2;
+    shadow.position.y = -5.4;
     island.add(shadow);
   } else {
     // expanse: one big rolling ground plane instead of the floating island tiers
@@ -445,7 +496,7 @@ export function buildWorld(scene, mode = "island") {
   tree.scale.setScalar(1.18);
   island.add(tree);
 
-  const curve = makePathCurve(mode);
+  const curve = makePathCurve(mode, edgeRadiusAt);
   island.add(pathRibbon(curve));
 
   const gate = torii();
