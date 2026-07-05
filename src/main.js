@@ -31,7 +31,8 @@ scene.fog = new THREE.Fog(COLORS.parchment, FOG_BASE.near, FOG_BASE.far);
 const FRUSTUM = pageMode === "island" ? 14.5 : 13.8;
 const camera = new THREE.OrthographicCamera();
 const CAM_BASE = new THREE.Vector3(15, 12.5, 15);
-const CAM_TARGET = new THREE.Vector3(0, 2.0, 0);
+// target tuned so the brig sits dead-center of the expanse frame
+const CAM_TARGET = new THREE.Vector3(0.4, 3.6, -0.4);
 function sizeCamera() {
   const a = window.innerWidth / window.innerHeight;
   camera.left = -FRUSTUM * a;
@@ -121,7 +122,7 @@ const liveToggle = document.getElementById("live-toggle");
 const skyline = document.getElementById("skyline");
 
 function labelToggles() {
-  soundToggle.textContent = ambience.enabled ? "hush ↗" : "sound ↗";
+  soundToggle.textContent = ambience.enabled ? "mute ↗" : "sound ↗";
   liveToggle.textContent = cycle.live ? "drift ↗" : "live ↗";
 }
 soundToggle.addEventListener("click", () => {

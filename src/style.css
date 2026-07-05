@@ -58,14 +58,15 @@ body {
   background: none; border: none; cursor: pointer; padding: 0;
   font-family: "IBM Plex Mono", monospace; font-size: 10px;
   letter-spacing: 0.2em; text-transform: uppercase;
-  color: rgba(28, 35, 51, 0.55); text-decoration: none;
+  color: rgba(28, 35, 51, 0.72); text-decoration: none;
+  text-shadow: 0 1px 3px rgba(244, 233, 212, 0.7); /* readable over open water */
   transition: color 2s ease;
 }
 #toggles-left button:hover, #toggles-right a:hover { color: var(--crimson); transition: color 0.3s ease; }
 
 body.night { color: #d8dce8; }
 body.night #wordmark h1 { color: #d8dce8; }
-body.night #toggles-left button, body.night #toggles-right a { color: rgba(216, 220, 232, 0.55); }
+body.night #toggles-left button, body.night #toggles-right a { color: rgba(216, 220, 232, 0.8); text-shadow: 0 1px 3px rgba(11, 18, 38, 0.8); }
 body.night #toggles-left button:hover, body.night #toggles-right a:hover { color: #e8a598; }
 
 /* ---------- speech bubbles (traffic) ---------- */
