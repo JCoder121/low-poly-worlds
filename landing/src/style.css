@@ -4,6 +4,12 @@
   --ink-60: rgba(28, 35, 51, 0.6);
   --ink-40: rgba(28, 35, 51, 0.4);
   --brass: #c9a227;
+  --ocean: #2c839a;
+  --ocean-deep: #1c5f74;
+  --land: #8a9b6e;
+  --land-line: #6f8256;
+  --musashi: #f2b8c6;
+  --sparrows: #241c14;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -11,21 +17,58 @@
 html, body {
   height: 100%;
   overflow: hidden;
-  background: var(--parchment);
+  background: var(--ocean);
   color: var(--ink);
   font-family: "IBM Plex Mono", ui-monospace, monospace;
 }
 
-#scene {
+/* ---------- full-bleed atlas ---------- */
+#atlas {
   position: fixed;
   inset: 0;
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
   display: block;
+}
+#atlas .ocean { fill: var(--ocean); }
+#atlas .land { fill: var(--land); stroke: var(--land-line); stroke-width: 3; stroke-linejoin: round; }
+
+#atlas .marker { cursor: pointer; }
+#atlas .marker-ring {
+  fill: none;
+  stroke-width: 4;
+  opacity: 0.55;
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: pulse 2.6s ease-in-out infinite;
+}
+#atlas .marker-dot { transform-origin: center; transform-box: fill-box; }
+#atlas .marker-musashi .marker-ring,
+#atlas .marker-musashi .marker-dot { fill: var(--musashi); stroke: var(--musashi); }
+#atlas .marker-sparrows .marker-ring,
+#atlas .marker-sparrows .marker-dot { fill: var(--sparrows); stroke: var(--sparrows); }
+#atlas .marker:hover .marker-dot { transform: scale(1.25); transition: transform 0.2s ease; }
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 0.55; }
+  50% { transform: scale(1.35); opacity: 0.15; }
+}
+
+/* sparrow's wake has no fixed home port — drift back and forth across the
+   open-water lane between the Americas and Europe/Africa */
+.marker-sparrows {
+  animation: drift 42s ease-in-out infinite alternate;
+}
+@keyframes drift {
+  0% { transform: translate(760px, 560px); }
+  100% { transform: translate(980px, 660px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .marker-sparrows { animation: none; transform: translate(870px, 610px); }
+  #atlas .marker-ring { animation: none; opacity: 0.4; }
 }
 
 /* ---------- loader ---------- */
-
 #loader {
   position: fixed;
   inset: 0;
@@ -46,6 +89,7 @@ html, body {
   letter-spacing: 0.3em;
   margin-right: -0.3em;
   margin-bottom: 1.4rem;
+  color: var(--ink);
 }
 .loader-bar {
   width: 240px;
@@ -70,7 +114,6 @@ html, body {
 }
 
 /* ---------- overlay ui ---------- */
-
 .wordmark {
   position: fixed;
   top: 2rem;
@@ -78,6 +121,8 @@ html, body {
   z-index: 10;
   user-select: none;
   pointer-events: none;
+  color: var(--parchment);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
 }
 .wordmark-en {
   display: block;
@@ -91,7 +136,7 @@ html, body {
   font-size: 0.65rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--ink-60);
+  opacity: 0.8;
 }
 
 .off-world-link {
@@ -102,11 +147,12 @@ html, body {
   font-size: 0.7rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--ink-60);
+  color: rgba(242, 232, 213, 0.85);
   text-decoration: none;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
   transition: color 0.3s ease;
 }
-.off-world-link:hover { color: var(--ink); }
+.off-world-link:hover { color: #fff; }
 
 .hint {
   position: fixed;
@@ -116,7 +162,8 @@ html, body {
   font-size: 0.65rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--ink-40);
+  color: rgba(242, 232, 213, 0.7);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
   user-select: none;
   pointer-events: none;
 }
@@ -129,6 +176,7 @@ html, body {
   padding: 0.35rem 0.7rem;
   background: rgba(242, 232, 213, 0.92);
   border: 1px solid var(--ink-40);
+  color: var(--ink);
   font-size: 0.7rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -138,5 +186,3 @@ html, body {
   transition: opacity 0.15s ease;
 }
 #marker-label.visible { opacity: 1; }
-
-body.hover-marker #scene { cursor: pointer; }
