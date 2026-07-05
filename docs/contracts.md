@@ -1,9 +1,9 @@
 # sparrow's wake — Module Contracts
 
-Read FIRST: `../../design/sparrows-wake-brief.md` (from repo root:
-`~/Documents/claude_playground/design/sparrows-wake-brief.md`) and the skill at
-`~/.claude/skills/low-poly-living-postcard/SKILL.md`. Reference implementation
-patterns: `~/Documents/claude_playground/low-poly-worlds/musashi-homepage/src/*.js`.
+Read FIRST: `../sparrows-wake-brief.md` (from repo root:
+`~/Documents/claude_playground/low-poly-worlds/sparrows-wake/sparrows-wake-brief.md`)
+and the skill at `~/.claude/skills/low-poly-living-postcard/SKILL.md`. Reference
+implementation patterns: `~/Documents/claude_playground/low-poly-worlds/musashi-homepage/src/*.js`.
 
 Already written (do NOT edit; import from them): `palette.js` (COLORS, mat,
 unlit, jitterGeometry), `waves.js` (WAVES, WAVE_MAX, waveHeight(x,z,t),
