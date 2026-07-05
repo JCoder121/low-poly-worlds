@@ -130,6 +130,22 @@ export class Water {
     this.surface.receiveShadow = true;
     this.group.add(this.surface);
 
+    // ---- backstop skirt (expanse only) -----------------------------------
+    // The ortho camera sits high enough that its bottom-of-frustum rays are
+    // already below y=0 at their own origin, heading further down from
+    // there — they never cross the flat sea surface at all, no matter how
+    // wide it's built. Without a lower catch plane, a thin band of sky shows
+    // through along the bottom screen edge on most viewports. A shallow,
+    // low-poly plane a little below sea level (same shared material, so it
+    // reads as more sea, lit/colored identically) catches those grazing rays.
+    if (pageMode !== "island") {
+      const skirtGeo = new THREE.PlaneGeometry(EXPANSE, EXPANSE, 2, 2);
+      skirtGeo.rotateX(-Math.PI / 2);
+      const skirt = new THREE.Mesh(skirtGeo, this.material);
+      skirt.position.y = -3;
+      this.group.add(skirt);
+    }
+
     // ---- foam pools (splash shards + ripple rings) ----------------------
     this._rings = [];
     for (let i = 0; i < 12; i++) {

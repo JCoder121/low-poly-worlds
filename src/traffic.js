@@ -8,6 +8,8 @@ import { makeLinkDeck } from "./links.js";
 
 const rand = (a, b) => a + Math.random() * (b - a);
 
+const TRAVELER_SCALE = 1.5; // +50% size, both page modes
+
 // Lane geometry (world). Near lane rides starboard, camera-side.
 // island page: the sea is a globe disc — drifters enter/leave at its rim
 // rather than the fog edge, so nothing ever floats over the bare parchment
@@ -365,7 +367,7 @@ export class Traffic {
     while (ISLAND_PAGE && (kind === "ghost" || kind === "isle")) kind = pickKind(isNight);
     const spec = CAST[kind];
     const group = spec.build();
-    const scale = spec.scale * rand(0.9, 1.08) * PAGE_SCALE;
+    const scale = spec.scale * rand(0.9, 1.08) * PAGE_SCALE * TRAVELER_SCALE;
     group.scale.setScalar(scale);
 
     const dir = Math.random() < 0.5 ? 1 : -1; // -x→+x or +x→-x

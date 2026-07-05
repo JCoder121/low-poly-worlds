@@ -83,8 +83,9 @@ Scrub params & verification recipe: `.claude/skills/verify/SKILL.md`.
   (flattened pole, equator ring), sea disc r11, world at 0.55× inside.
 - **Expanse sea fills every corner** (96-unit grid, cell 0.65); ship 0.9×.
 - **No sun/moon discs** — the discs felt awkward; lighting alone tells time.
-  Sky keeps stars/shooting stars and gains rainbows (after daytime rain),
-  meteor showers, gull flocks; the water gains a porpoising dolphin pod.
+  Sky keeps stars/shooting stars and gains meteor showers, gull flocks; the
+  water gains a porpoising dolphin pod. (A post-rain rainbow arch shipped
+  here too but was cut later — it read as tacky against the low-poly palette.)
 - **Fog weather removed** (rain/storm remain; distance fog stays aesthetic).
 - **A real cast**: captain / first mate / lookout / cook / deckhand + the
   recurring prisoner ("not again…"). Tiny bark bubbles, deck-spot occupancy

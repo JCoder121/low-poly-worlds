@@ -31,9 +31,9 @@ Loader takes ~2.5s — always `sleep 3` before screenshots.
    golden hour / 0.85 night plateau (stars + lantern). NO sun/moon discs
    anywhere since v3 — lighting alone tells the time.
 2. **Weather** `?weather=rain|storm` — rain streaks + dimmed light; storm
-   adds full-scene flashes every 6-16s. Sky events: rainbow after a daytime
-   rain→clear break, meteor shower bursts + shooting stars on clear nights,
-   gull flocks by day. Water events: dolphin pod porpoising the lane.
+   adds full-scene flashes every 6-16s. Sky events: meteor shower bursts +
+   shooting stars on clear nights, gull flocks by day. Water events: dolphin
+   pod porpoising the lane.
 3. **Ship** — 0.9× on expanse, plank seams/strakes/anchor/cannonball
    stacks visible; sails offset forward of the masts (masts NEVER hidden by
    canvas sway); cast of 5 roles + recurring prisoner, tiny bark bubbles

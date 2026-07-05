@@ -511,7 +511,11 @@ export class Ship {
     const hFP = waveHeight(gx + dxFA, gz - dzPS, t); // fore-port
     const hAS = waveHeight(gx - dxFA, gz + dzPS, t); // aft-starboard
     const hAP = waveHeight(gx - dxFA, gz - dzPS, t); // aft-port
-    const mean = (hFS + hFP + hAS + hAP) * 0.25;
+    // bob must track the sea surface directly under the hull's own CG — the
+    // 4-corner mean is right for slope (roll/pitch) but averages away most of
+    // the vertical displacement, since the corners sit spread wider than the
+    // shorter wave components' wavelengths and largely cancel them out.
+    const hCenter = waveHeight(gx, gz, t);
     const hFwd = (hFS + hFP) * 0.5, hAft = (hAS + hAP) * 0.5;
     const hStar = (hFS + hAS) * 0.5, hPort = (hFP + hAP) * 0.5;
 
@@ -523,7 +527,7 @@ export class Ship {
     this._rotZ += (targetZ - this._rotZ) * 0.06;
     this._rotX += (targetX - this._rotX) * 0.06;
 
-    this.group.position.y = mean + BOB_OFFSET * s;
+    this.group.position.y = hCenter * amp + BOB_OFFSET * s;
     this.group.rotation.z = this._rotZ;
     this.group.rotation.x = this._rotX;
     this.group.rotation.y = Math.sin(t * 0.05) * 0.024 * amp; // slow heading drift (~40% calmer)

@@ -1,7 +1,6 @@
 // sparrow's wake — everything celestial, disc-less (v3). The sun/moon discs +
 // phase overlay + halo are GONE: the lighting cycle alone tells the time now.
-// What remains: stars, a pooled shooting star, and three rare pooled events —
-//   rainbow      — after a daytime rain→clear break, a soft low-sat 5-band arch
+// What remains: stars, a pooled shooting star, and two rare pooled events —
 //   meteor shower — clear nights, a dense burst of 5-7 streaks (reuses the pool)
 //   gull flock    — day, five tiny flapping two-triangle gulls in a loose V
 // Two page modes, same as before:
@@ -15,20 +14,9 @@ import * as THREE from "three";
 import { COLORS, unlit } from "./palette.js";
 
 const STAR_HEX = 0xf5f0e0; // approved constant
-// soft, low-saturation, palette-adjacent rainbow tints (approved local consts).
-// index 0 = innermost band (violet) → 4 = outermost (rose); all kept muted so
-// the arch reads as haze, never a cartoon rainbow. Opacity is capped ≤ 0.35.
-const RAINBOW_TINTS = [0xb3a6cf, 0x9fb6d6, 0x9ccbb0, 0xe6d39a, 0xd9a48f];
 
 // module scratch — never reallocated
-const _camPos = new THREE.Vector3();
 const _camQuat = new THREE.Quaternion();
-
-const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
-const smoothstep = (e0, e1, x) => {
-  const t = clamp01((x - e0) / (e1 - e0));
-  return t * t * (3 - 2 * t);
-};
 
 // loose-V chevron offsets (flock-local, +x = travel direction): a leader with
 // two trailing arms.
@@ -46,17 +34,15 @@ export class Sky {
 
     this.stars = this._buildStars();
     this._buildShoot();   // pooled single streak (shared by shower)
-    this._buildRainbow(); // pooled 5-band arch
     this._buildGulls();   // pooled flock of 5
 
-    // rain→clear rainbow tracking + event schedules (ws.time based)
-    this._prevKind = null;
+    // event schedules (ws.time based)
     this.meteorActive = false;
     this.meteorRemaining = 0;
     this.meteorStreakAt = 0;
     this.meteorNextWindow = 240 + Math.random() * 240; // first chance 4–8 min
 
-    this.layer.add(this.stars, this.shootGroup, this.rainbow, this.gullGroup);
+    this.layer.add(this.stars, this.shootGroup, this.gullGroup);
 
     if (this.island) scene.add(this.layer);
     else camera.add(this.layer); // main.js does scene.add(camera) before us
@@ -127,40 +113,6 @@ export class Sky {
     this.shootNext = 100 + Math.random() * 140; // first ambient fire (ws.time)
   }
 
-  _buildRainbow() {
-    // 5 nested half-rings (RingGeometry, theta 0..π = an upper arch). The arch
-    // is oversized and dropped low so only its crown crosses the visible band.
-    this.rainbow = new THREE.Group();
-    this.rainbow.frustumCulled = false;
-    this.rainbow.visible = false;
-    const R = this.island ? 13 : 15;
-    const width = this.island ? 0.6 : 0.72;
-    // drop the arch so its crown lands in-band: expanse below the frame,
-    // island right at the waterline so it arcs over the globe.
-    this.rainbow.position.set(0, this.island ? 0 : -4, this.island ? 0 : -57);
-    this.rainbowMats = [];
-    for (let i = 0; i < 5; i++) {
-      const inner = R + i * width;
-      const geo = new THREE.RingGeometry(inner, inner + width, 48, 1, 0, Math.PI);
-      const m = unlit(RAINBOW_TINTS[i], {
-        transparent: true,
-        opacity: 0,
-        side: THREE.DoubleSide,
-        depthTest: this.island,
-        depthWrite: false,
-        fog: false,
-      });
-      const ring = new THREE.Mesh(geo, m);
-      ring.renderOrder = this.island ? 20 : 89;
-      ring.frustumCulled = false;
-      this.rainbowMats.push(m);
-      this.rainbow.add(ring);
-    }
-    this.rainbowActive = false;
-    this.rainbowStart = 0;
-    this.rainbowDur = 25;
-  }
-
   _buildGulls() {
     // five tiny gulls, each two mirrored wing triangles sharing one geometry +
     // material. Chevron offsets baked in now; only wing flap + bob animate.
@@ -220,46 +172,16 @@ export class Sky {
     this.stars.material.opacity = starAlpha * starWx * 0.9;
 
     // island celestials are world-anchored → grab camera pose once per frame
-    if (this.island) {
-      this.camera.getWorldQuaternion(_camQuat);
-      this.camera.getWorldPosition(_camPos);
-    }
+    if (this.island) this.camera.getWorldQuaternion(_camQuat);
 
-    this._updateRainbow(time, kind, day);
     this._updateMeteor(time, clear, night, reduced);
     this._updateShoot(time, starAlpha, clear, blend, reduced);
     this._updateGulls(time, day, reduced);
-
-    this._prevKind = kind;
   }
 
   _place(obj, x, y) {
     if (this.island) obj.position.set(x, y, 0);
     else obj.position.set(x, y, -57);
-  }
-
-  // --- rainbow: rain → clear during daytime -------------------------------
-  _updateRainbow(time, kind, day) {
-    if (this._prevKind === "rain" && kind === "clear" && day && !this.rainbowActive) {
-      this.rainbowActive = true;
-      this.rainbowStart = time;
-    }
-    if (!this.rainbowActive) return;
-
-    const p = (time - this.rainbowStart) / this.rainbowDur;
-    if (p < 0 || p >= 1) { // done (or ws.time scrubbed past it)
-      this.rainbowActive = false;
-      this.rainbow.visible = false;
-      for (const m of this.rainbowMats) m.opacity = 0;
-      return;
-    }
-    // eased fade in (first ~16%) and out (last ~24%), capped ≤ 0.35
-    const env = smoothstep(0, 0.16, p) * (1 - smoothstep(0.76, 1, p));
-    const op = env * 0.32;
-    for (const m of this.rainbowMats) m.opacity = op;
-    this.rainbow.visible = true;
-    // island arch faces the camera in azimuth while staying upright
-    if (this.island) this.rainbow.rotation.y = Math.atan2(_camPos.x, _camPos.z);
   }
 
   // --- meteor shower window (clear nights) --------------------------------

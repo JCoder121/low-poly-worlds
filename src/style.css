@@ -57,7 +57,7 @@ body {
 #toggles-left button, #toggles-right a {
   background: none; border: none; cursor: pointer; padding: 0;
   font-family: "IBM Plex Mono", monospace; font-size: 10px;
-  letter-spacing: 0.2em; text-transform: uppercase;
+  font-variant-caps: normal; letter-spacing: 0.2em; text-transform: uppercase;
   color: rgba(28, 35, 51, 0.72); text-decoration: none;
   text-shadow: 0 1px 3px rgba(244, 233, 212, 0.7); /* readable over open water */
   transition: color 2s ease;
