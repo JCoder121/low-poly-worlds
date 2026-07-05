@@ -5,9 +5,6 @@
   --ink-40: rgba(28, 35, 51, 0.4);
   --brass: #c9a227;
   --ocean: #2c839a;
-  --ocean-deep: #1c5f74;
-  --land: #8a9b6e;
-  --land-line: #6f8256;
   --musashi: #f2b8c6;
   --sparrows: #241c14;
 }
@@ -22,50 +19,61 @@ html, body {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
 }
 
-/* ---------- full-bleed atlas ---------- */
-#atlas {
+/* ---------- full-bleed 3D atlas ---------- */
+#scene {
   position: fixed;
   inset: 0;
   width: 100vw;
   height: 100vh;
   display: block;
+  z-index: 1;
 }
-#atlas .ocean { fill: var(--ocean); }
-#atlas .land { fill: var(--land); stroke: var(--land-line); stroke-width: 3; stroke-linejoin: round; }
 
-#atlas .marker { cursor: pointer; }
-#atlas .marker-ring {
-  fill: none;
-  stroke-width: 4;
-  opacity: 0.55;
-  transform-origin: center;
-  transform-box: fill-box;
-  animation: pulse 2.6s ease-in-out infinite;
+/* pins: DOM elements whose left/top are set each frame from projected world
+   coords (musashi fixed on japan; sparrow's wake drifts + bobs in main.js) */
+.marker {
+  position: fixed;
+  z-index: 5;
+  width: 38px;
+  height: 38px;
+  margin: -19px 0 0 -19px;
+  cursor: pointer;
 }
-#atlas .marker-dot { transform-origin: center; transform-box: fill-box; }
-#atlas .marker-musashi .marker-ring,
-#atlas .marker-musashi .marker-dot { fill: var(--musashi); stroke: var(--musashi); }
-#atlas .marker-sparrows .marker-ring,
-#atlas .marker-sparrows .marker-dot { fill: var(--sparrows); stroke: var(--sparrows); }
-#atlas .marker:hover .marker-dot { transform: scale(1.25); transition: transform 0.2s ease; }
+.marker:focus-visible { outline: none; }
+.marker:focus-visible .marker-dot { box-shadow: 0 0 0 3px rgba(242, 232, 213, 0.9); }
+.marker-ring,
+.marker-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+.marker-ring {
+  width: 26px;
+  height: 26px;
+  border: 4px solid;
+  opacity: 0.55;
+  animation: pulse 2.6s ease-in-out infinite;
+  pointer-events: none;
+}
+.marker-dot {
+  width: 17px;
+  height: 17px;
+  transition: transform 0.2s ease;
+}
+.marker-musashi .marker-ring { border-color: var(--musashi); }
+.marker-musashi .marker-dot { background: var(--musashi); }
+.marker-sparrows .marker-ring { border-color: var(--sparrows); }
+.marker-sparrows .marker-dot { background: var(--sparrows); }
+.marker:hover .marker-dot { transform: translate(-50%, -50%) scale(1.25); }
 
 @keyframes pulse {
-  0%, 100% { transform: scale(1); opacity: 0.55; }
-  50% { transform: scale(1.35); opacity: 0.15; }
-}
-
-/* sparrow's wake has no fixed home port — drift back and forth across the
-   open-water lane between the Americas and Europe/Africa */
-.marker-sparrows {
-  animation: drift 42s ease-in-out infinite alternate;
-}
-@keyframes drift {
-  0% { transform: translate(760px, 560px); }
-  100% { transform: translate(980px, 660px); }
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.55; }
+  50% { transform: translate(-50%, -50%) scale(1.35); opacity: 0.15; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .marker-sparrows { animation: none; transform: translate(870px, 610px); }
-  #atlas .marker-ring { animation: none; opacity: 0.4; }
+  .marker-ring { animation: none; opacity: 0.4; }
 }
 
 /* ---------- loader ---------- */

@@ -21,45 +21,19 @@
     </div>
   </div>
 
-  <!-- full-bleed atlas: viewBox is a stylized, low-poly world (not
-       geographically precise) — Americas west, Europe/Africa/Asia east,
-       preserveAspectRatio="slice" crops to fill the viewport edge to edge
-       instead of letterboxing. -->
-  <svg id="atlas" viewBox="0 0 2000 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-    <rect x="0" y="0" width="2000" height="1000" class="ocean" />
+  <!-- full-bleed 3D atlas: extruded low-poly continents on a GPU-faceted sea
+       (same stylized layout as before — Americas west, Europe/Africa/Asia
+       east). The camera's cover-framing crops to fill the viewport edge to
+       edge instead of letterboxing. Pins are DOM elements projected from
+       world space by main.js. -->
+  <canvas id="scene" aria-hidden="true"></canvas>
 
-    <polygon class="land" points="
-      160,160 260,90 380,110 480,80 560,140 600,220 640,300 600,360
-      560,420 520,400 460,440 400,480 340,460 300,380 240,300 180,220
-    " />
-    <polygon class="land" points="
-      520,480 600,460 680,490 740,560 720,650 680,750 640,850 600,920
-      580,960 560,900 540,800 520,700 500,600 490,540
-    " />
-    <polygon class="land" points="
-      1060,140 1120,120 1180,160 1220,220 1160,280 1080,320 1020,280 1000,220 1020,160
-    " />
-    <polygon class="land" points="
-      1020,380 960,420 970,480 1010,520 1000,600 1030,700 1050,780 1070,820
-      1110,780 1140,700 1160,620 1180,540 1220,480 1180,440 1140,400 1080,360
-    " />
-    <polygon class="land" points="
-      1260,180 1400,100 1560,120 1680,180 1700,260 1660,320 1620,380 1580,440
-      1600,500 1560,580 1520,540 1480,500 1440,560 1380,620 1340,560 1360,480
-      1300,420 1280,340 1260,260
-    " />
-    <polygon class="land land-small" points="1840,300 1870,280 1900,310 1890,350 1860,380 1830,360 1820,330" />
-    <polygon class="land land-small" points="1700,660 1780,640 1860,660 1880,720 1840,780 1760,800 1700,760 1680,700" />
-
-    <g class="marker marker-musashi" data-href="musashi-homepage/" data-label="musashi's hill ↗" tabindex="0" role="link">
-      <circle class="marker-ring" cx="1868" cy="330" r="14" />
-      <circle class="marker-dot" cx="1868" cy="330" r="9" />
-    </g>
-    <g class="marker marker-sparrows" data-href="sparrows-wake/" data-label="sparrow's wake ↗" tabindex="0" role="link">
-      <circle class="marker-ring" cx="0" cy="0" r="14" />
-      <circle class="marker-dot" cx="0" cy="0" r="9" />
-    </g>
-  </svg>
+  <div class="marker marker-musashi" data-href="musashi-homepage/" data-label="musashi's hill ↗" tabindex="0" role="link" aria-label="musashi's hill">
+    <span class="marker-ring"></span><span class="marker-dot"></span>
+  </div>
+  <div class="marker marker-sparrows" data-href="sparrows-wake/" data-label="sparrow's wake ↗" tabindex="0" role="link" aria-label="sparrow's wake">
+    <span class="marker-ring"></span><span class="marker-dot"></span>
+  </div>
 
   <header class="wordmark">
     <span class="wordmark-en">low-poly worlds</span>
