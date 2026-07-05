@@ -25,7 +25,7 @@ npm run build    # static build in dist/
 - `src/cycle.js` — the day/night + season clock (`ws` state read by everything else)
 - `src/weather.js` — seasonal falling particles (petals/leaves/snow), rain, fireflies, mist
 - `src/landmarks.js` — temple, lantern, zen garden, bridge
-- `src/water.js` — the river, weir cascade, and koi pond: laned faceted surface with per-vertex banding, sky-mirror tint, bank foam, koi
+- `src/water.js` — the river and koi pond: laned faceted surface with per-vertex banding, sky-mirror tint, bank foam, koi
 - `src/main.js` — renderer, lighting, isometric camera + parallax, loader, live season wordmark
 
 ## Tuning knobs
@@ -111,11 +111,9 @@ per-season/per-time-of-day verification recipe.
 - **The water calmed down.** The big cliff waterfall, its expanse basin, the
   night sparkle glints, and the summer dragonflies are gone. The river now
   tapers in from the NW landscape (no hard entry edge), runs under the bridge,
-  tips over a small stone **weir** (three wiggling cascade ribbons + lip
-  fringe), and ends in a **larger koi pond/lake** sunk into the terrain — a
-  real hole in the island slab, a carved dish in the expanse ground. Same rig
-  on both pages; nothing pours off the island edge anymore. Misogi now means
-  standing shin-deep in the pond before the falls.
+  and flows straight into a **larger koi pond/lake** at grade — ripple rings
+  mark the inflow. Same rig on both pages; nothing pours off the island edge
+  anymore. Misogi now means standing in the pond shallows facing the inflow.
 - **No narration.** The `#status` pill and all activity/traveler lines were
   removed; travelers still offer their Wikipedia speech bubbles.
 - **Wordmark**: just `musashi's hill` plus a live season line (updates as the

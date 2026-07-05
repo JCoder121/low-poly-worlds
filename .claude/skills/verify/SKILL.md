@@ -33,8 +33,7 @@ Always pair `time`/`season` screenshots with `&speed=0` so the frame doesn't dri
 (zazen/tea @ fire, reading/carving @ tree), so `pickNext` excludes
 same-spot activities as candidates. Night (`ws.night > 0.5`) biases the
 pool to `[zazen, tea, reading]`. Winter excludes `misogi`. Since v4, misogi
-means standing shin-deep in the koi pond facing the weir cascade (spot y is
--0.30, below ground level — that's correct, he's in the water).
+means standing in the koi pond shallows facing the river's inflow.
 
 ## Key hooks for driving
 - **No status pill since v4** — the `#status` narration line was removed. Musashi's activity is verified visually (pose + spot); traveler arrivals are verified by their speech bubble alone.
@@ -47,17 +46,17 @@ means standing shin-deep in the koi pond facing the weir cascade (spot y is
 - Night/lantern/stars: `ws.night` (0..1) is a continuous ramp between the dusk (0.55) and night (0.8) `KEYS` in `cycle.js`. It drives: star field opacity (island page only), the stone lantern's light/glow, summer fireflies. Use `?time=0.8&speed=0` for full night; `?time=0.55` (default) for zero night effects.
 - Tilt: dispatch `PointerEvent('pointermove')` on window, wait ~1 s for lerp, compare screenshots. Disabled under reduced motion.
 - Loader: `#loader` gets class `done`; the 武蔵の丘 splash is intentionally kept (it's the splash mon, not the top-left wordmark).
-- Reduced motion: code-only check. Touchpoints: `main.js` parallax off; `cycle.js` clock frozen; `musashi.js` instant activity swap instead of walks; `weather.js` particle cap 30, no rain, static fireflies/mist; `style.css` bubble animations off; `water.js` (grep `reducedMotion`) — swell baked once, foam static, streaks/rings hidden, cascade wiggle skipped, koi at 0.15× speed.
+- Reduced motion: code-only check. Touchpoints: `main.js` parallax off; `cycle.js` clock frozen; `musashi.js` instant activity swap instead of walks; `weather.js` particle cap 30, no rain, static fireflies/mist; `style.css` bubble animations off; `water.js` (grep `reducedMotion`) — swell baked once, foam static, streaks/rings hidden, koi at 0.15× speed.
 
-## v4 water (river → weir → koi lake)
+## v4 water (river → koi lake)
 The big cliff waterfall, expanse basin, night sparkles, and dragonflies are
 **gone** since v4. The rig, identical on both pages: river enters at the NW
 (tapering to a point + sinking into the ground over its first ~12% — no hard
-start), runs under the bridge, tips over a stone **weir** (small 3-ribbon
-cascade + lip fringe), and terminates in a **koi pond/lake** (r 1.1, surface
-y -0.18) sunk at world (-2.7, 4.7) — a slab hole on `/island.html`, a carved
-dish on `/`. A mossDark bank ring covers the rim seam; it whitens across the
-winter freeze (it's outside world.js's season tint registry).
+start), runs under the bridge, and flows straight into the **koi pond/lake**
+(disc r 1.1, top face y 0.06, at grade like the road) at world (-2.7, 4.7).
+The river curve's tail ends inside the disc so the surfaces overlap and share
+the mirror tint (no seam); the dark bank ribbons stop at u 0.88 so no bank
+juts into the open water; 3 ripple rings cycle outward from the inflow.
 
 **Sky-mirror tint** — river + pond color = `WATER (0x93bfd0)` lerped 30% toward
 `ws.lighting.bg`, scaled 0.90, then lerped toward `ICE (0xd8e4ea)` by `frozen`.
@@ -67,9 +66,8 @@ Rose-pale at dawn, gold at dusk, ink-dark at night. Screenshot each `&speed=0`.
 | feature | visible when | hidden/altered when |
 |---|---|---|
 | bank foam lines + drifting streaks | `frozen < 0.5` (streaks; clamped to u∈[0.15,0.95], never on the tapered tip) | winter: fade to nothing, no popping |
-| ripple rings (3, at the cascade impact on the pond's north rim) | `!reducedMotion && frozen < 1` | winter or reduced motion: invisible |
+| ripple rings (3, at the river's inflow into the pond) | `!reducedMotion && frozen < 1` | winter or reduced motion: invisible |
 | koi (2, circling the pond at radii 0.4/0.62) | `frozen < 0.5` | frozen: hidden; reduced motion: 0.15× speed |
-| weir cascade ribbons / lip fringe / splash ring | wiggling, cycling | winter: cascade static + paled (45%), fringe/splash gone |
 
 **No-sparkle/no-dragonfly check**: `?time=0.8&speed=0` → zero glints on the
 water; `?season=summer&time=0.25&speed=0` → zero dragonflies over the river.
@@ -80,7 +78,7 @@ apart — the water crop must be pixel-identical. `frozen` ramps across the
 
 **Two-frame-diff technique** (confirming motion): live clock, screenshot, wait
 2-4s, screenshot, diff the water region only (crop first). Expect ripple-ring
-phase change, a koi displaced, streaks shifted, cascade wiggle.
+phase change, a koi displaced, streaks shifted.
 
 **Season-boundary sweep**: `?season=autumn&speed=60`, screenshot every ~1s from
 t=0 — the 20-sim-second crossfade is ≈0.3s real at speed 60; a genuine blend
@@ -89,5 +87,5 @@ frame shows leaves + snow at once and water already shifting toward ice.
 ## Gotchas
 - Playwright MCP saves screenshots to claude_playground root (its cwd), not this dir — move them out after.
 - Console shows ~20-26 benign three.js "toNonIndexed(): already non-indexed" warnings on load; not a regression signal. Use `browser_console_messages` **without** `all: true` — with it you'll see stale HMR noise from earlier live-edit sessions.
-- The expanse ground grid is coarse (~2.4 world-units/vertex; only ONE vertex lands inside the pond). The pond dish carve in `world.js` is deliberately deep/wide (0.55 for db<1.5, falloff to 2.9) so bilinear interpolation keeps all ground under the water disc below the surface; if you shrink it the pond silently buries itself under the terrain.
+- The expanse ground grid is coarse (~2.4 world-units/vertex; only ONE vertex would land inside the pond). That's why the pond sits AT grade on flat ground (disc embedded just above y=0) — any sunken-pond design needs a deep, wide terrain carve or bilinear interpolation buries the water under the mesh.
 - The expanse haze at the top of the frame is intentional `THREE.Fog` depth fog (`main.js`), tuned closer on `/` (16/30) than island (20/38). Not a bug.

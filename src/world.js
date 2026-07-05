@@ -64,14 +64,8 @@ function blobShape(radius, variance, points = 11) {
   return shape;
 }
 
-function islandLayer(radius, variance, height, topColor, sideColor, hole = null) {
-  const shape = blobShape(radius, variance);
-  if (hole) {
-    const path = new THREE.Path();
-    path.absarc(hole.x, -hole.z, hole.r, 0, Math.PI * 2, true); // clockwise; shape-y maps to world -z after rotateX(-π/2)
-    shape.holes.push(path);
-  }
-  const geo = new THREE.ExtrudeGeometry(shape, {
+function islandLayer(radius, variance, height, topColor, sideColor) {
+  const geo = new THREE.ExtrudeGeometry(blobShape(radius, variance), {
     depth: height,
     bevelEnabled: false,
   });
@@ -184,7 +178,7 @@ function cherryTree() {
       geo,
       mat(i % 3 === 0 ? COLORS.sakuraLight : COLORS.sakura)
     );
-    blob.position.set(x, y, z);
+    blob.position.set(x * 1.25, y, z * 1.25); // canopy spread wider than tall
     blob.castShadow = true;
     g.add(blob);
     blobMeshes.push(blob);
@@ -347,7 +341,7 @@ export function buildWorld(scene, mode = "island") {
   let topMaterial; // ground/top-face material registered under tint key "top"
 
   if (mode === "island") {
-    const top = islandLayer(7.6, 0.10, 1.6, COLORS.moss, COLORS.cliff, { x: -2.7, z: 4.7, r: 1.35 });
+    const top = islandLayer(7.6, 0.10, 1.6, COLORS.moss, COLORS.cliff);
     top.position.y = -1.6; // top face stays at world y=0
     island.add(top);
     topMaterial = top.material[0];
@@ -378,24 +372,13 @@ export function buildWorld(scene, mode = "island") {
     groundGeo.rotateX(-Math.PI / 2);
     // gentle rolling facets, flat near the clearing
     const pos = groundGeo.attributes.position;
-    // dish under the koi pond — water.js builds the same sunken bowl/ring rig
-    // in both modes. The grid is coarse (~2.4 units/vertex; only one vertex
-    // lands inside the pond), so the dish must be deep and WIDE enough that
-    // bilinear interpolation keeps every point under the 1.1-radius water disc
-    // (surface y -0.18) below roughly -0.25; the moss bank ring hides the rim.
-    // Same center as the island slab's pond hole.
-    const POND_X = -2.7, POND_Z = 4.7;
+    // the koi pond sits AT grade (water.js embeds its disc just above y=0,
+    // like the road), so the ground near the clearing stays flat — no carve.
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i), z = pos.getZ(i);
       const d = Math.hypot(x, z);
       const roll = d > 8 ? (d - 8) * 0.04 : 0;
-      let y = Math.sin(x * 0.45) * Math.cos(z * 0.38) * roll + (Math.random() - 0.5) * Math.min(0.18, roll);
-      const db = Math.hypot(x - POND_X, z - POND_Z);
-      if (db < 1.5) {
-        y -= 0.55;
-      } else if (db < 2.9) {
-        y -= 0.55 * (1 - (db - 1.5) / 1.4) ** 2;
-      }
+      const y = Math.sin(x * 0.45) * Math.cos(z * 0.38) * roll + (Math.random() - 0.5) * Math.min(0.18, roll);
       pos.setY(i, y);
     }
     groundGeo.computeVertexNormals();
