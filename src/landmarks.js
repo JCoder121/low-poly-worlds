@@ -168,14 +168,15 @@ export function buildLandmarks(island, mode = "island") {
   group.add(lantern);
 
   const garden = zenGarden();
-  garden.position.set(2.7, 0, -2.6);
+  garden.position.set(1.6, 0, -3.0);
   garden.rotation.y = 0.5;
   group.add(garden);
 
   const br = bridge();
   br.position.set(-4.2, 0, 2.6);
-  // deck runs along the road; river flows under across it
-  br.rotation.y = Math.atan2(2.6 - (-0.9), -4.2 - (-5.2)) + Math.PI / 2;
+  // deck's walking axis (local +x) aligns with the road's Catmull-Rom tangent
+  // at the crossing, ~(0.979, 0.201); travelers walk the road across the deck
+  br.rotation.y = Math.PI - 0.203;
   group.add(br);
 
   // snow that builds up on the landmarks as winter deepens. temple caps keep
@@ -184,7 +185,7 @@ export function buildLandmarks(island, mode = "island") {
   const uniformSnow = [...lantern.userData.snow, ...br.userData.snow];
 
   const spots = {
-    garden: { position: new THREE.Vector3(1.8, 0, -1.9), facing: -0.9 },   // at the garden's near edge, rake in hand
+    garden: { position: new THREE.Vector3(1.05, 0, -2.25), facing: 2.51 },   // at the garden's north-east edge, rake in hand, facing its center
     temple: { position: new THREE.Vector3(3.35, 0, -2.55), facing: Math.PI * 0.78 }, // kneeling before the steps, clear of the roof overhang
     bridge: { position: new THREE.Vector3(-4.1, 0.16, 2.0), facing: 2.5 },         // on the deck, ~0.6 off the road center line, gazing downstream
   };

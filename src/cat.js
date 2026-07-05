@@ -12,7 +12,7 @@ const PATCH = 0xd96f38; // ember orange, palette-matched to the koi
 const SPOTS = [
   new THREE.Vector3(3.75, 0, -3.05), // temple steps
   new THREE.Vector3(-2.9, 0, -1.8),  // beneath the sakura
-  new THREE.Vector3(2.0, 0, -3.2),   // zen-garden edge
+  new THREE.Vector3(2.7, 0, -3.75),  // between garden and temple, off the raked sand
   new THREE.Vector3(-5.0, 0, 3.1),   // river bank near the bridge
 ];
 
@@ -55,6 +55,7 @@ export class Cat {
     const spot = SPOTS[Math.floor(Math.random() * SPOTS.length)];
     this.root.position.copy(spot);
     this.root.rotation.y = Math.random() * Math.PI * 2;
+    this.root.scale.setScalar(1.33);
     this.currentSpot = spot.clone();
 
     // body: a flattened, curled round mass (breathing scales this group)
@@ -259,7 +260,7 @@ export class Cat {
     const a = w.pts[i], b = w.pts[i + 1];
     const f = w.segs[i] > 1e-6 ? d / w.segs[i] : 1;
     // subtle walk bob + body sway, derived from time so nothing accumulates
-    this.root.position.set(a.x + (b.x - a.x) * f, Math.abs(Math.sin(t * 8)) * 0.02, a.z + (b.z - a.z) * f);
+    this.root.position.set(a.x + (b.x - a.x) * f, Math.abs(Math.sin(t * 8)) * 0.027, a.z + (b.z - a.z) * f);
     this.root.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);
     this.body.rotation.z = Math.sin(t * 8) * 0.05;
     this.head.rotation.x = 0.05 + Math.sin(t * 8) * 0.03;
