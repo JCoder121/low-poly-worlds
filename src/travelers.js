@@ -325,7 +325,10 @@ export class Travelers {
     const clamped = THREE.MathUtils.clamp(tr.u, this.uStart, this.uEnd);
     const p = this.curve.getPointAt(clamped);
     const tangent = this.curve.getTangentAt(clamped);
-    tr.mesh.position.set(p.x, p.y + Math.abs(Math.sin(t * 7)) * 0.03, p.z);
+    // rise over the bridge's arch (crown ~0.17) instead of clipping through it
+    const bd = Math.hypot(p.x - (-4.2), p.z - 2.6);
+    const lift = bd < 0.85 ? Math.cos((bd / 0.85) * Math.PI / 2) * 0.17 : 0;
+    tr.mesh.position.set(p.x, p.y + Math.abs(Math.sin(t * 7)) * 0.03 + lift, p.z);
     tr.mesh.rotation.y = Math.atan2(tangent.x * tr.dir, tangent.z * tr.dir);
     tr.mesh.rotation.z = Math.sin(t * 7) * 0.04;
     if (tr.mesh.userData.cart) {

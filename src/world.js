@@ -333,8 +333,8 @@ export function makePathCurve(mode = "island", edgeRadiusAt = null) {
     new THREE.Vector3(7.6, 0, 1.0),
   ];
   if (mode === "expanse") {
-    points.unshift(new THREE.Vector3(-16, 0, 2.2));
-    points.push(new THREE.Vector3(16, 0, 0.4));
+    points.unshift(new THREE.Vector3(-30, 0, 3.4));
+    points.push(new THREE.Vector3(30, 0, -0.8));
   } else if (edgeRadiusAt) {
     // trim the two island endpoints onto the actual generated cliff edge, so the
     // ribbon meets the rim cleanly instead of over/under-shooting the blob
@@ -464,12 +464,11 @@ export function buildWorld(scene, mode = "island") {
     topMaterial = ground.material;
   }
 
-  // back hills, like the atlas ridge
+  // back hill, like the atlas ridge (the second dark dome at (1.4,-5.2) was
+  // removed — it crowded the relocated zen garden)
   const h1 = domeHill(2.6, COLORS.mossLight);
   h1.position.set(-3.6, 0, -4.4);
-  const h2 = domeHill(1.9, COLORS.mossDark);
-  h2.position.set(1.4, 0, -5.2);
-  island.add(h1, h2);
+  island.add(h1);
 
   const extraHillTargets = [];
   if (mode === "expanse") {
@@ -486,9 +485,10 @@ export function buildWorld(scene, mode = "island") {
     }
   }
 
-  // pines scattered on and behind the hills
+  // pines scattered on and behind the hills (the one at (-2.2,-5.4) sat
+  // half-buried in h1's flank and was removed)
   const pinePlacements = [
-    [-5.6, -2.6, 1.1], [-2.2, -5.4, 1.35], [-0.6, -4.6, 0.9],
+    [-5.6, -2.6, 1.1], [-0.6, -4.6, 0.9],
     [3.2, -5.0, 1.2], [6.3, -2.3, 0.95], [6.2, -1.4, 0.8],
     [-6.4, -0.6, 0.9],
   ];
@@ -527,6 +527,7 @@ export function buildWorld(scene, mode = "island") {
   island.add(pathRibbon(curve, edgeRadiusAt));
 
   const gate = torii();
+  gate.scale.setScalar(1.3); // sized up so taller travelers (hats, banners) clear the span
   if (mode === "island" && edgeRadiusAt) {
     // stand the gate ON the trimmed curve near its west end, so it always
     // straddles the road wherever the random rim moves the road's end. Scan in
@@ -556,14 +557,13 @@ export function buildWorld(scene, mode = "island") {
 
   // ---- season tint registry ----
   // Each entry stores its OWN base color (never read from material.color, which
-  // drifts as it is lerped every frame). Hills map h1->hl, h2->hd.
+  // drifts as it is lerped every frame). The hill maps h1->hl.
   const cherryBlobs = tree.userData.blobs;
   const snowCaps = tree.userData.snowCaps;
   const toriiSnowCap = gate.userData.snowCap; // winter cap on the kasagi
   const tintTargets = [
     { material: topMaterial, key: "top", base: COLORS.moss, lighten: false },
     { material: h1.material, key: "hl", base: COLORS.mossLight, lighten: false },
-    { material: h2.material, key: "hd", base: COLORS.mossDark, lighten: false },
     ...extraHillTargets,
     ...pineTargets,
   ];
@@ -594,8 +594,9 @@ export function buildWorld(scene, mode = "island") {
       const winterAmt = ws.season === "winter" ? 1 - b : ws.nextSeason === "winter" ? b : 0;
       for (const blob of cherryBlobs) blob.scale.setScalar(Math.max(0.001, 1 - winterAmt));
       for (const cap of snowCaps) cap.scale.setScalar(Math.max(0.001, winterAmt));
-      // torii accumulates a matching cap on the kasagi (grow scale.y only)
-      if (toriiSnowCap) toriiSnowCap.scale.y = Math.max(0.001, winterAmt);
+      // torii cap: setScalar, not scale.y — a y-squashed box still shows its
+      // full white top face to the high camera; it must shrink to a point
+      if (toriiSnowCap) toriiSnowCap.scale.setScalar(Math.max(0.001, winterAmt));
     },
   };
 

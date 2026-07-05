@@ -108,13 +108,13 @@ export class Weather {
     const tree = cfg.area === "tree";
     return {
       cfg,
-      x: tree ? this.tree.x + (Math.random() - 0.5) * 3.2 : (Math.random() - 0.5) * 14,
+      x: tree ? this.tree.x + (Math.random() - 0.5) * 2.75 : (Math.random() - 0.5) * 14,
       y: anywhere
         ? Math.random() * (tree ? 2.4 : 5.5)
         : tree
         ? 1.6 + Math.random() * 1.0
         : 3.5 + Math.random() * 2.0,
-      z: tree ? this.tree.z + (Math.random() - 0.5) * 2.6 : (Math.random() - 0.5) * 12,
+      z: tree ? this.tree.z + (Math.random() - 0.5) * 2.25 : (Math.random() - 0.5) * 12,
       fall: cfg.fall[0] + Math.random() * cfg.fall[1],
       w: cfg.size[0],
       h: cfg.size[1],
