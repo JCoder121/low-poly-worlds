@@ -6,6 +6,9 @@ import { buildWater } from "./water.js";
 import { Musashi } from "./musashi.js";
 import { Travelers } from "./travelers.js";
 import { Cycle } from "./cycle.js";
+import { Wind } from "./wind.js";
+import { Ambience } from "./sound.js";
+import { Cat } from "./cat.js";
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const mode = document.body.dataset.mode ?? "island";
@@ -48,7 +51,7 @@ scene.add(fill);
 
 // ---------- isometric camera with mouse parallax ----------
 
-const FRUSTUM = 11;
+const FRUSTUM = mode === "expanse" ? 11 : 11.8;
 const camera = new THREE.OrthographicCamera();
 function frameCamera() {
   const aspect = window.innerWidth / window.innerHeight;
@@ -104,7 +107,11 @@ const musashi = new Musashi(world.island, {
   ...water.spots,
 });
 
+const cat = new Cat(world.island);
 const travelers = new Travelers(world.island, world.curve, camera);
+
+const wind = new Wind();
+const ambience = new Ambience();
 
 // ---------- themed loader ----------
 
@@ -129,6 +136,33 @@ LOADER_LINES.forEach((line, i) => {
   }, 450 * i);
 });
 setTimeout(() => loaderEl.classList.add("done"), 450 * LOADER_LINES.length + 500);
+
+// ---------- bottom-left toggles: live clock & ambient sound ----------
+
+// live/drift: flip the persisted flag and reload — the loader covers the blink,
+// and a reload is the honest way to reseed the cycle from the real clock.
+const liveToggle = document.getElementById("live-toggle");
+liveToggle.textContent = cycle.live ? "drift ↗" : "live ↗";
+liveToggle.addEventListener("click", () => {
+  localStorage.setItem("musashi-live", cycle.live ? "0" : "1");
+  location.reload();
+});
+
+// sound: no reload — start()/stop() the synthesized ambience on click. A prior
+// visitor's "on" just relabels; the browser blocks autoplay, so first click starts.
+const soundToggle = document.getElementById("sound-toggle");
+soundToggle.textContent = localStorage.getItem("musashi-sound") === "1" ? "mute ↗" : "sound ↗";
+soundToggle.addEventListener("click", () => {
+  if (ambience.enabled) {
+    ambience.stop();
+    localStorage.setItem("musashi-sound", "0");
+    soundToggle.textContent = "sound ↗";
+  } else {
+    ambience.start();
+    localStorage.setItem("musashi-sound", "1");
+    soundToggle.textContent = "mute ↗";
+  }
+});
 
 // ---------- loop ----------
 
@@ -165,11 +199,16 @@ renderer.setAnimationLoop(() => {
   );
   camera.lookAt(LOOK_AT);
 
+  const gust = wind.update(dt, t);
+  world.wind?.(gust, t);
+  if (ambience.enabled) ambience.setWind(gust);
+
   world.fire.update(t, ws.night);
-  weather.update(dt, t, ws);
+  weather.update(dt, t, ws, gust);
   world.seasons.update(ws);
   landmarks.update(dt, t, ws);
   water.update(dt, t, ws);
+  cat.update(dt, t, ws);
   musashi.update(dt, t, ws);
   travelers.update(dt, t);
 

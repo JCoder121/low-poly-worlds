@@ -43,6 +43,12 @@ export class Cycle {
     const sp = Number(q.get("speed"));
     this.speed = reducedMotion ? 0 : q.has("speed") && !isNaN(sp) ? Math.max(0, sp) : 1; // "?speed=0" must freeze
 
+    // live mode: the diorama's clock tracks the visitor's real local time and
+    // season. Opt in via ?real=1 or the persisted toggle — but an explicit
+    // ?time= / ?season= always wins and forces live off (pinned scenes stay pinned).
+    this.live = ((q.get("real") === "1") || localStorage.getItem("musashi-live") === "1")
+      && !q.has("time") && !q.has("season");
+
     const tq = Number(q.get("time"));
     this.dayT = q.has("time") && !isNaN(tq) ? wrap01(tq) : Math.random(); // random time-of-day on a fresh load
     const s = q.get("season");
@@ -85,16 +91,43 @@ export class Cycle {
   }
 
   update(dt) {
-    const step = dt * this.speed;
-    this.dayT = wrap01(this.dayT + step / DAY_LENGTH);
-    this.seasonTime += step;
-    const seasonLen = DAY_LENGTH * DAYS_PER_SEASON;
-    if (this.seasonTime >= seasonLen) {
-      this.seasonTime -= seasonLen;
-      this.seasonIndex = (this.seasonIndex + 1) % 4;
+    if (this.live) {
+      // the real clock IS the clock: derive state straight from Date, no scrub
+      this._deriveLive();
+    } else {
+      const step = dt * this.speed;
+      this.dayT = wrap01(this.dayT + step / DAY_LENGTH);
+      this.seasonTime += step;
+      const seasonLen = DAY_LENGTH * DAYS_PER_SEASON;
+      if (this.seasonTime >= seasonLen) {
+        this.seasonTime -= seasonLen;
+        this.seasonIndex = (this.seasonIndex + 1) % 4;
+      }
     }
     this._recompute();
     if (this.stars) this.stars.material.opacity = this.state.lighting.starOpacity * 0.9;
+  }
+
+  // map the visitor's wall-clock time and calendar month onto the day wheel and
+  // season wheel. seasonTime stays at 0 so seasonBlend reads 0 (no cross-fade).
+  _deriveLive() {
+    const now = new Date();
+    this.seasonIndex = Math.floor(((now.getMonth() - 2 + 12) % 12) / 3); // Mar–May→spring … Dec–Feb→winter
+    this.seasonTime = 0;
+    // piecewise-linear day anchors, in hours-since-dawn (hh∈[6,30)): 06→0, 12→0.25,
+    // 18→0.55, 22→0.8, then 22:00→06:00 (=30h) wraps 0.8→1.0 back to dawn.
+    let hh = now.getHours() + now.getMinutes() / 60;
+    if (hh < 6) hh += 24;
+    const A = [[6, 0.0], [12, 0.25], [18, 0.55], [22, 0.8], [30, 1.0]];
+    let dayT = 0;
+    for (let i = 0; i < A.length - 1; i++) {
+      if (hh >= A[i][0] && hh <= A[i + 1][0]) {
+        const k = (hh - A[i][0]) / (A[i + 1][0] - A[i][0]);
+        dayT = A[i][1] + (A[i + 1][1] - A[i][1]) * k;
+        break;
+      }
+    }
+    this.dayT = wrap01(dayT);
   }
 
   _recompute() {

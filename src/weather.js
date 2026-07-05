@@ -133,14 +133,14 @@ export class Weather {
     this.fall.setMatrixAt(i, this.dummy.matrix);
   }
 
-  update(dt, t, ws) {
-    this.updateFall(dt, t, ws);
+  update(dt, t, ws, gust = 0) {
+    this.updateFall(dt, t, ws, gust);
     this.updateRain(dt, ws);
-    this.updateFireflies(t, ws);
+    this.updateFireflies(t, ws, gust);
     this.updateMist(dt, ws);
   }
 
-  updateFall(dt, t, ws) {
+  updateFall(dt, t, ws, gust = 0) {
     const cur = FALL_CONFIGS[ws.season];
     const nxt = FALL_CONFIGS[ws.nextSeason];
     const b = ws.seasonBlend;
@@ -192,7 +192,8 @@ export class Weather {
         }
       } else {
         p.y -= p.fall * dt;
-        p.x += (Math.sin(t * 0.8 + p.swayPhase) * p.swayAmp * 0.4 + p.drift) * dt;
+        // gusts blow petals/leaves/snow harder along +x and rock them more
+        p.x += (Math.sin(t * 0.8 + p.swayPhase) * p.swayAmp * 0.4 * (1 + gust * 1.5) + p.drift * (1 + gust * 5)) * dt;
         p.z += Math.cos(t * 0.6 + p.swayPhase) * 0.1 * dt;
       }
       const settled = p.y <= 0.02;
@@ -251,17 +252,18 @@ export class Weather {
     this.rain.instanceMatrix.needsUpdate = true;
   }
 
-  updateFireflies(t, ws) {
+  updateFireflies(t, ws, gust = 0) {
     const on = ws.season === "summer";
     this.fireflyGroup.visible = on;
     if (!on) return;
     for (const m of this.fireflies) {
       const u = m.userData;
       if (!this.reduced) {
+        // a gust nudges the fireflies' drift amplitudes a touch wider
         m.position.set(
-          u.base.x + Math.sin(t * u.speed + u.phase) * 0.6,
+          u.base.x + Math.sin(t * u.speed + u.phase) * (0.6 + gust * 0.3),
           u.base.y + Math.sin(t * u.speed * 0.7 + u.phase * 1.3) * 0.35,
-          u.base.z + Math.cos(t * u.speed * 0.8 + u.phase) * 0.6
+          u.base.z + Math.cos(t * u.speed * 0.8 + u.phase) * (0.6 + gust * 0.3)
         );
       }
       const pulse = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 2.5 + u.phase));
