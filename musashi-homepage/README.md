@@ -26,7 +26,6 @@ npm run build    # static build in dist/
 - `src/weather.js` — seasonal falling particles (petals/leaves/snow), rain, fireflies, mist
 - `src/landmarks.js` — temple, lantern, zen garden, bridge, winter snow caps
 - `src/water.js` — the river and koi pond: laned faceted surface with per-vertex banding, sky-mirror tint, bank foam, koi
-- `src/cat.js` — the napping cat and its little life
 - `src/wind.js` — the gust clock (drives tree sway, particle drift, the sound bed)
 - `src/sound.js` — synthesized ambience: brook, wind, bell, and Musashi's shinobue
 - `src/main.js` — renderer, lighting, isometric camera + parallax, loader, wordmark, toggles, the frame loop

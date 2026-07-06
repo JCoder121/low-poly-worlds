@@ -8,7 +8,6 @@ import { Travelers } from "./travelers.js";
 import { Cycle } from "./cycle.js";
 import { Wind } from "./wind.js";
 import { Ambience } from "./sound.js";
-import { Cat } from "./cat.js";
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const mode = document.body.dataset.mode ?? "island";
@@ -107,7 +106,6 @@ const musashi = new Musashi(world.island, {
   ...water.spots,
 });
 
-const cat = new Cat(world.island);
 const travelers = new Travelers(world.island, world.curve, camera);
 
 const wind = new Wind();
@@ -208,7 +206,6 @@ renderer.setAnimationLoop(() => {
   world.seasons.update(ws);
   landmarks.update(dt, t, ws);
   water.update(dt, t, ws);
-  cat.update(dt, t, ws);
   musashi.update(dt, t, ws, travelers.active?.mesh.position ?? null);
   ambience.setFlute(musashi.activity === "flute" && musashi.phase === "settled");
   travelers.update(dt, t);

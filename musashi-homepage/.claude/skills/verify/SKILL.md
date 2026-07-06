@@ -66,9 +66,6 @@ the torii is placed ON the curve near its west end, astride the road.
   (world.wind), petal/snow drift ×(1+5g), firefly scatter. Zero under
   reducedMotion. Hard to catch in one screenshot — use two-frame diff on a
   pine crown during a forced long watch, or just eyeball a 30s recording.
-- Cat (`cat.js`): random spot per load (temple steps / under sakura / zen
-  garden / river bank), naps, ear flicks, alert glances, relocates every
-  150–240s (fire detour). Asleep (no alerts/moves) at ws.night > 0.5.
 - Live mode: `?real=1` or the bottom-left `live ↗` toggle (localStorage
   "musashi-live") → season from real month, dayT from local hh:mm via anchors
   06→0.0, 12→0.25, 18→0.55, 22→0.8, wrap to 06. Explicit ?time/?season win.
